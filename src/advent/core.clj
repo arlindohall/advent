@@ -1,6 +1,8 @@
 (ns advent.core
   (:gen-class))
 
+(use 'advent.y2020)
+
 (defn help
   "Print usage and quit."
   [args]
@@ -9,7 +11,9 @@
 (defn run
   "Execute one day."
   [args]
-  (println "Running day" (get args "day" "unknown")))
+  (let [day (get args "day" "unknown")]
+    (println "Running day" day)
+    ((puzzles day) "test")))
 
 (defn prop-error
   [& messages]
