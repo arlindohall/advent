@@ -26,14 +26,13 @@
 (defn parse-props
   "Parse the props for a command"
   [props]
-  (if (empty? props)
-      {}
-      (if (empty? (rest props))
-          (parse-one (nth props 0) true)
-          (let [first (first props) second (second props)]
-            (if (.startsWith second "--")
-              (merge (parse-one first true) (parse-props (rest props)))
-              (merge (parse-one first second) (parse-props (rest (rest props)))))))))
+  (cond
+    (empty? props) {}
+    (empty? (rest props)) (parse-one (nth props 0) true)
+    :else (let [first (first props) second (second props)]
+      (if (.startsWith second "--")
+        (merge (parse-one first true) (parse-props (rest props)))
+              (merge (parse-one first second) (parse-props (rest (rest props))))))))
 
 (defn parse-command
   [command props]
@@ -44,7 +43,6 @@
 (defn parse-args
   "Parse arguments and quit."
   [args]
-  (println args)
   (if-let [[command & rest] args]
     (parse-command command rest)
     [help {}]))
