@@ -8,7 +8,7 @@
   [args]
   (println "Usage: advent <command> [args...]"))
 
-(defn run
+(defn puzzle
   "Execute one day."
   [args]
   (let [day (get args "day" "unknown")]
@@ -41,7 +41,7 @@
 (defn parse-command
   [command props]
   (cond (.equals "help" command) [help {}]
-        (.equals "run" command) [run (parse-props props)]
+        (.equals "puzzle" command) [puzzle (parse-props props)]
         :else [help {}]))
 
 (defn parse-args
@@ -56,3 +56,8 @@
   [& args]
   (let [[command parsed] (parse-args args)]
     (command parsed)))
+
+;; For repl
+(defn reload
+  []
+  (use 'advent.core :reload-all))
