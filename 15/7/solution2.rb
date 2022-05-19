@@ -1,31 +1,25 @@
 
 require 'pry'
 
-# todo: all ops should check if values are number or wire
-class WireKit < Struct.new(:operations)
-  def run
-    @wires = {b: 16076}
+class WireKit < Struct.new(:operations, :wires)
+  def calculate_rules
     @rules = operations.map { |op| [op.wire, op] }.to_h
   end
 
   def [](wire)
-    if Integer === wire
+    case wire
+    when Integer
       wire
-    elsif @wires[wire]
-      @wires[wire]
     else
-      op = @rules[wire]
-      @wires[wire] = op.provide(self)
+      wires[wire] ||= @rules[wire].provide do |wire|
+        self[wire]
+      end
     end
-  end
-
-  def wires
-    @wires
   end
 end
 
 class Instruction < Struct.new(:wire, :input)
-  def provide(source)
+  def provide &source
     input.compute(source)
   end
 end
@@ -94,7 +88,7 @@ end
 #   Instruction[:i, Not[:y]],
 # ]
 
-# @wire_kit.run
+# @wire_kit.calculate_rules
 
 # @wires = "
 # 123 -> x
@@ -472,7 +466,7 @@ he RSHIFT 5 -> hh"
   end
 }
 
-@wire_kit = WireKit.new(@wires)
-@wire_kit.run
+@wire_kit = WireKit.new(@wires, {b: 16076})
+@wire_kit.calculate_rules
 
 puts @wire_kit[:a]
