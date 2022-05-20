@@ -6,20 +6,20 @@ require 'pry'
 #################### IMPLEMENTATION ####################
 ########################################################
 
-class StringParser < Struct.new(:input)
+class StringList < Struct.new(:full_input)
   def parse_string
-    self.input = input.lines
-    output = input.map { |line|
-      LineParser.new(line.strip)
+    self.full_input = full_input.lines
+    output = full_input.map { |line|
+      RawString.new(line.strip)
     }.map { |parser|
       parser.parse_line
     }
 
-    ParsedString.new(input, output)
+    StringPairs.new(full_input, output)
   end
 end
 
-class ParsedString < Struct.new(:input, :output)
+class StringPairs < Struct.new(:input, :output)
   def difference
     output.map{ |parsed_line|
       parsed_line.difference
@@ -27,17 +27,17 @@ class ParsedString < Struct.new(:input, :output)
   end
 end
 
-class LineParser < Struct.new(:input, :output)
+class RawString < Struct.new(:text)
   def parse_line
-    parsed_line = ParsedLine.new(input, [])
+    parsed_line = StringRepresentation.new(text, [])
     @start = 1
     @end = 2
 
-    while @end < input.length
-      parsed_line.output << parse_cluster
+    while @end < text.length
+      parsed_line.memory << parse_cluster
     end
 
-    parsed_line.output = parsed_line.output.join
+    parsed_line.memory = parsed_line.memory.join
     parsed_line
   end
 
@@ -51,21 +51,21 @@ class LineParser < Struct.new(:input, :output)
   end
 
   def parse_char
-    case input[@start]
+    case text[@start]
     when '\\'
       parse_escape
     else
-      input[@start]
+      text[@start]
     end
   end
 
   def parse_escape
     @start += 1
-    case input[@start]
+    case text[@start]
     when 'x'
       @start += 1
       @end += 3
-      [input[@start...@end].to_i(16)].pack("U")
+      [text[@start...@end].to_i(16)].pack("U")
     when '"'
       @end += 1
       '"'
@@ -73,14 +73,14 @@ class LineParser < Struct.new(:input, :output)
       @end += 1
       '\\'
     else
-      throw "Unexpected character: #{input[@index]} at index=#{@index}"
+      throw "Unexpected character: #{text[@index]} at index=#{@index}"
     end
   end
 end
 
-class ParsedLine < Struct.new(:input, :output)
+class StringRepresentation < Struct.new(:code, :memory)
   def difference
-    input.length - output.length
+    code.length - memory.length
   end
 end
 
@@ -88,10 +88,10 @@ end
 #################### SOLUTION ####################
 ##################################################
 
-# @example = Pathname.new(__FILE__).parent.join('test.txt').read
-@example = Pathname.new(__FILE__).parent.join('input.txt').read
+@example = Pathname.new(__FILE__).parent.join('test.txt').read
+# @example = Pathname.new(__FILE__).parent.join('input.txt').read
 
-@parsed = StringParser.new(@example).parse_string
+@parsed = StringList.new(@example).parse_string
 
 pp @parsed
 puts @parsed.difference
