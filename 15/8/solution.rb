@@ -17,6 +17,17 @@ class StringList < Struct.new(:full_input)
 
     StringPairs.new(full_input, output)
   end
+
+  def encode_string
+    self.full_input = full_input.lines
+    output = full_input.map { |line|
+      RawString.new(line.strip)
+    }.map { |parser|
+      parser.encode_line
+    }
+
+    StringPairs.new(full_input, output)
+  end
 end
 
 class StringPairs < Struct.new(:input, :output)
@@ -28,17 +39,32 @@ class StringPairs < Struct.new(:input, :output)
 end
 
 class RawString < Struct.new(:text)
+  def encode_line
+    new_line = text.chars.map{ |char|
+      case char
+      when '"'
+        '\\"'
+      when '\\'
+        '\\\\'
+      else
+        char
+      end
+    }
+
+    new_line = "\"#{new_line.join}\""
+    StringRepresentation.new(text, new_line)
+  end
+
   def parse_line
-    parsed_line = StringRepresentation.new(text, [])
+    memory = []
     @start = 1
     @end = 2
 
     while @end < text.length
-      parsed_line.memory << parse_cluster
+      memory << parse_cluster
     end
 
-    parsed_line.memory = parsed_line.memory.join
-    parsed_line
+    StringRepresentation.new(text, memory)
   end
 
   def parse_cluster
@@ -88,10 +114,14 @@ end
 #################### SOLUTION ####################
 ##################################################
 
-@example = Pathname.new(__FILE__).parent.join('test.txt').read
-# @example = Pathname.new(__FILE__).parent.join('input.txt').read
+# @example = Pathname.new(__FILE__).parent.join('test.txt').read
+@example = Pathname.new(__FILE__).parent.join('input.txt').read
 
 @parsed = StringList.new(@example).parse_string
 
 pp @parsed
 puts @parsed.difference
+
+@encoded = StringList.new(@example).encode_string
+pp @encoded
+puts -@encoded.difference
