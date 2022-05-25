@@ -23,7 +23,7 @@ class GuestList
   def permutations
     # Naive on the next line, but because we use cycles it doesn't matter who is first
     # guests.permutation.to_a
-    (Set.new(guests) - [guests.first]).to_a.permutation.to_a.map{|l| l.push(guests.first)}
+    guests.last(guests.size-1).permutation.to_a.map{|l| l.push(guests.first)}
   end
 
   def guests
