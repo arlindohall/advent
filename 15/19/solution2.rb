@@ -45,8 +45,8 @@ class Memo
 end
 
 MEMO = Memo.new
-# LARGE = 500
-LARGE = 200 # found after running a few times
+LARGE = 500
+# LARGE = 195 # found after running a few times
 $MIN_COUNT = LARGE
 $MAX_DEPTH = 0
 $MIN_LENGTH = LARGE
@@ -79,7 +79,7 @@ class State
       return [LARGE]
     end
 
-    result = rules.shuffle.flat_map do |rule|
+    result = rules.flat_map do |rule|
       all_indices(molecule, rule.from).flat_map do |index|
         mol = molecule[0...index] + rule.to + molecule[index+rule.from.length..-1]
         mrep(mol, rules, count+1)
