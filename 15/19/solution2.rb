@@ -1,4 +1,6 @@
 
+require 'sqlite3'
+
 Rule = Struct.new(:from, :to)
 State = Struct.new(:molecule, :rules)
 Input = Struct.new(:text)
@@ -25,8 +27,26 @@ class Input
   end
 end
 
-MEMO = {}
-LARGE = 500
+class Memo
+  def initialize
+    @d = SQLite3::Database.new '15/19/memo.db'
+    @d.execute('create table if not exists memo (string text, depth int);')
+  end
+
+  def save(molecule, depth)
+    @d.execute('insert into memo values (?, ?)', molecule, depth)
+    depth
+  end
+
+  def query(molecule)
+    value = @d.execute('select depth from memo where string = ?', molecule)
+    value.first.first.to_i if value && value.first && value.first.first
+  end
+end
+
+MEMO = Memo.new
+# LARGE = 500
+LARGE = 200 # found after running a few times
 $MIN_COUNT = LARGE
 $MAX_DEPTH = 0
 $MIN_LENGTH = LARGE
@@ -37,8 +57,8 @@ class State
   end
   
   def mrep(molecule, rules, count)
-    if MEMO[molecule]
-      return MEMO[molecule]
+    if MEMO.query(molecule)
+      return MEMO.query(molecule)
     end
 
     if count > $MAX_DEPTH
@@ -59,12 +79,14 @@ class State
       return [LARGE]
     end
 
-    MEMO[molecule] ||= rules.shuffle.flat_map do |rule|
+    result = rules.shuffle.flat_map do |rule|
       all_indices(molecule, rule.from).flat_map do |index|
         mol = molecule[0...index] + rule.to + molecule[index+rule.from.length..-1]
         mrep(mol, rules, count+1)
       end
-    end.min
+    end.filter{ |i| i }.min
+
+    MEMO.save(molecule, result || LARGE)
   end
 
   def all_indices(molecule, substring)
@@ -77,6 +99,7 @@ class State
     indices
   end
 end
+
 
 # @input = %Q(
 #   H => HO
