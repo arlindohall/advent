@@ -18,11 +18,15 @@ class SpellBook
       Spell.new("Magic Missile", 53, 4, 0, nil),
       Spell.new("Drain", 73, 2, 2, nil),
       Spell.new("Shield", 113, 0, 0, Effect.new(6, 7, 0, 0)),
-      Spell.new("Poison", 173, 3, 0, Effect.new(6, 0, 3, 0)),
+      Spell.new("Poison", 173, 0, 0, Effect.new(6, 0, 3, 0)),
       Spell.new("Recharge", 229, 0, 0, Effect.new(5, 0, 0, 101))
     ].map do |spell|
       [spell.name, spell]
     end.to_h
+  end
+
+  def spells
+    book.values
   end
 
   def find(name)
@@ -49,11 +53,6 @@ class Attack
     true
   end
 end
-
-$spell_book = SpellBook.new
-$player_1 = Wizard.new(250, 10)
-$boss_1 = Boss.new(13, 8)
-$boss_2 = Boss.new(14, 8)
 
 class Turn
   def armor
@@ -136,6 +135,77 @@ class Turn
     false
   end
 end
+
+class Game
+  def apply(action = Attack.new)
+    if action.is_attack?
+      action.damage = boss.damage
+    end
+
+    Game.new(
+      wizard,
+      boss,
+      turns.clone.push(
+        Turn.new(
+          next_player,
+          *next_states,
+          next_effects,
+          action,
+        )
+      )
+    )
+  end
+
+  private
+    def next_player
+      if turns.empty?
+        :player
+      elsif turns.last.attacker == :boss
+        :player
+      else
+        :boss
+      end
+    end
+
+    def next_states
+      if turns.empty?
+        [
+          PlayerState.new(wizard.hp, wizard.mana),
+          OpponentState.new(boss.hp, boss.damage)
+        ]
+      else
+        turns.last.after_attack
+      end
+    end
+
+    def next_effects
+      if turns.empty?
+        []
+      else
+        increment_effects
+      end
+    end
+
+    # Assumes at least 1 turn
+    def increment_effects
+      turns.last.effects.clone.push(last_effect).compact.map do |effect|
+        effect.clone.tap do |e|
+          e.timer -= 1
+        end
+      end
+    end
+
+    def last_effect
+      if turns&.last&.action&.is_spell?
+        turns&.last&.action&.effect
+      end
+    end
+end
+
+$spell_book = SpellBook.new
+$player_1 = Wizard.new(10, 250)
+$boss_1 = Boss.new(13, 8)
+$boss_2 = Boss.new(14, 8)
 
 class GameTree
   def compute_example_game_1
