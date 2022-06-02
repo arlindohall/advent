@@ -476,33 +476,41 @@ class GameTree
     winner
   end
 
+  KNOWN_LARGE_MANA = 1295
   def part1(initial_game = Game.new($player, $boss, []))
     @games = {0 => [initial_game]}
-    loop do
+    rounds = 0
+    min = KNOWN_LARGE_MANA
+    while !@games.empty? && min_key < min
       return false if @games.empty?
-      puts "Games: #{@games.size}"
-      next_games = player_moves(@games[min_key])
-      # puts "Computing games with mana #{min_key}, found #{next_games.size} games"
-      # puts "Manas: #{next_games.map(&:total_mana).join(", ")}"
+      rounds += 1
+      puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}"
 
-      if !(winners = winners?(next_games)).empty?
-        puts "Winners: #{winners.map(&:total_mana).join(", ")}"
-        return last_check(winners.min_by(&:total_mana))
+      next_games = player_moves(@games[min_key])
+        .filter{ |game| game.total_mana <= min }
+        .filter{ |game| !game.boss_wins? }
+
+      unless winners?(next_games).empty?
+        min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
+        puts "Found #{winners?(next_games).size} winners of #{next_games.size} after player, min: #{min}"
       end
 
       next_games = boss_moves(next_games)
+        .filter{ |game| game.total_mana <= min }
+        .filter{ |game| !game.boss_wins? }
 
-      if !(winners = winners?(next_games)).empty?
-        puts "Winners: #{winners.map(&:total_mana).join(", ")}"
-        return last_check(winners.min_by(&:total_mana))
+      unless winners?(next_games).empty?
+        min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
+        puts "Found #{winners?(next_games).size} winners of #{next_games.size} after boss, min: #{min}"
       end
 
       @games.delete(min_key)
       merge_games(next_games)
     end
+
+    min
   end
 
-  KNOWN_LARGE_MANA = 1295
   def part2(depth = 0, games = [Game.new($player, $boss, [])])
     # We know a ceiling for part 2, so we know the max number of spells
     # 26 is the max
