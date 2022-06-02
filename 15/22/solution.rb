@@ -469,6 +469,44 @@ class GameTree
       merge_games(next_games)
     end
   end
+
+  def part2(depth = 0)
+    # We know a ceiling for part 2, so we know the max number of spells
+    # 26 is the max
+    @games ||= [Game.new($player, $boss, [])]
+    @winners = []
+    if depth > 26
+      return 1382
+    end
+
+    @games = @games.flat_map do |game|
+      player_move = game.possible_spells.map do |spell|
+        game.apply(spell)
+      end.filter do |game|
+        !game.boss_wins?
+      end
+
+      player_move = player_move.group_by(&:player_wins?)
+      player_move, winners = [player_move[false] || [], player_move[true] || []]
+      @winners += winners
+
+      boss_move = player_move.map do |game|
+        game.apply
+      end.filter do |game|
+        !game.boss_wins?
+      end
+
+      boss_move = boss_move.group_by(&:player_wins?)
+      boss_move, winners = [boss_move[false] || [], boss_move[true] || []]
+      @winners += winners
+
+      boss_move
+    end
+
+    min = @winners.min_by(&:total_mana)&.total_mana
+    puts "Found min mana #{min} of #{@winners.size} at depth #{depth} -> #{@winners.map(&:total_mana).join(", ")}"
+    [min || 1382, part2(depth+1)].min
+  end
 end
 
 @game_tree = GameTree.new
