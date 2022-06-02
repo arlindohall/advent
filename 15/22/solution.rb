@@ -154,11 +154,22 @@ class Turn
   def boss_wins?
     player, opponent = after_effects
     return true if player.hp <= 0
+    return false if opponent.hp <= 0
 
     _, opponent = after_attack
     return true if player.hp <= 0 && opponent.hp > 0
 
-    false
+    return possible_spells.empty?
+  end
+
+  def remaining_mana
+    after_attack.first.mana
+  end
+
+  def possible_spells
+    $spell_book.spells.filter do |spell|
+      spell.cost <= remaining_mana
+    end
   end
 
   def show
@@ -203,17 +214,11 @@ class Game
     turns.last.player_wins?
   end
 
-  def remaining_mana
-    return player.mana if turns.empty?
-    turns.last.after_attack.first.mana
-  end
-
   def possible_spells
-    return $spell_book.spells if turns.empty?
-
-    player_state, _ = turns.last.after_attack
-    $spell_book.spells.filter do |spell|
-      spell.cost <= remaining_mana
+    if turns.empty?
+      $spell_book.spells
+    else
+      turns.last.possible_spells
     end
   end
 
@@ -221,6 +226,10 @@ class Game
     @total_mana ||= turns.map do |turn|
       turn.action.cost
     end.sum
+  end
+
+  def spells
+    turns.map(&:action).select(&:is_spell?)
   end
 
   def show
@@ -281,6 +290,8 @@ $boss_2 = Boss.new(14, 8)
 
 $player = Wizard.new(50, 500)
 $boss = Boss.new(55, 8)
+# $player = $player_1
+# $boss = $boss_2
 
 class GameTree
   def compute_example_game_1
@@ -368,10 +379,13 @@ class GameTree
         game.possible_spells.map do |spell|
           game.apply(spell)
         end
-      end
+      end.compact
+      # puts "Computing games with mana #{min_key}, found #{next_games.size} games"
+      # puts "Manas: #{next_games.map(&:total_mana).join(", ")}"
 
       winners = next_games.filter(&:player_wins?)
       if !winners.empty?
+        puts "Winners: #{winners.map(&:total_mana).join(", ")}"
         return winners.min_by(&:total_mana)
       end
 
@@ -379,6 +393,12 @@ class GameTree
         game.apply
       end.filter do |game|
         !game.boss_wins?
+      end
+
+      winners = next_games.filter(&:player_wins?)
+      if !winners.empty?
+        puts "Winners: #{winners.map(&:total_mana).join(", ")}"
+        return winners.min_by(&:total_mana)
       end
 
       @games.delete(min_key)
