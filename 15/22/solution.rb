@@ -52,6 +52,10 @@ class Attack
   def is_attack?
     true
   end
+
+  def cost
+    0
+  end
 end
 
 class Turn
@@ -156,6 +160,36 @@ class Game
     )
   end
 
+  def boss_wins?
+    return false if turns.empty?
+    turns.last.boss_wins?
+  end
+
+  def player_wins?
+    return false if turns.empty?
+    turns.last.player_wins?
+  end
+
+  def remaining_mana
+    return player.mana if turns.empty?
+    turns.last.after_attack.first.mana
+  end
+
+  def possible_spells
+    return $spell_book.spells if turns.empty?
+
+    player_state, _ = turns.last.after_attack
+    $spell_book.spells.filter do |spell|
+      spell.cost <= remaining_mana
+    end
+  end
+
+  def total_mana
+    @total_mana ||= turns.map do |turn|
+      turn.action.cost
+    end.sum
+  end
+
   private
     def next_player
       if turns.empty?
@@ -206,6 +240,9 @@ $spell_book = SpellBook.new
 $player_1 = Wizard.new(10, 250)
 $boss_1 = Boss.new(13, 8)
 $boss_2 = Boss.new(14, 8)
+
+$player = Wizard.new(50, 500)
+$boss = Boss.new(55, 8)
 
 class GameTree
   def compute_example_game_1
@@ -272,6 +309,47 @@ class GameTree
       .apply($spell_book.find("Magic Missile"))
       .apply(Attack.new)
   end
+
+  ###### PART 1 SOLUTION ######
+
+  def min_key
+    @games.keys.min
+  end
+
+  def merge_games(games)
+    games.each do |game|
+      @games[game.total_mana] ||= []
+      @games[game.total_mana].push(game)
+    end
+  end
+
+  def part1
+    @games ||= {0 => [Game.new($player, $boss, [])]}
+    loop do
+      next_games = @games[min_key].flat_map do |game|
+        game.possible_spells.map do |spell|
+          game.apply(spell)
+        end
+      end
+
+      winners = next_games.filter(&:player_wins?)
+      if !winners.empty?
+        return winners.min_by(&:total_mana)
+      end
+
+      next_games = next_games.map do |game|
+        game.apply
+      end.filter do |game|
+        !game.boss_wins?
+      end
+
+      @games.delete(min_key)
+      merge_games(next_games)
+    end
+  end
 end
 
 @game_tree = GameTree.new
+
+# 801 too low <- got by running @game_tree.part1 but bug on line 337 returned min_key
+# 854 too low <- got by running @game_tree.part1.total_mana
