@@ -160,13 +160,13 @@ class Turn
   end
 
   def winner?
-    return :boss if player_state.hp - handicap <= 0
+    return :boss if after_effects.first.hp <= 0
 
-    return :player if after_effects[1].hp <= 0
+    return :player if after_effects.last.hp <= 0
 
-    return :player if after_attack[1].hp <= 0
+    return :player if after_attack.last.hp <= 0
 
-    return :boss if after_attack[0].hp <= 0
+    return :boss if after_attack.first.hp <= 0
   end
 
   def player_wins?
