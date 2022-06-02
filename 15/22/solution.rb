@@ -96,7 +96,10 @@ class Turn
   # Returns [PlayerState, OpponentState]
   def after_effects
     @after_effects ||= [
-      PlayerState.new(player_state.hp, player_state.mana + recharge),
+      PlayerState.new(
+        player_state.hp - handicap,
+        player_state.mana + recharge
+      ),
       OpponentState.new(opponent_state.hp - poison),
     ]
   end
@@ -133,30 +136,45 @@ class Turn
     end
   end
 
+  def hard_mode?
+    true
+  end
+
+  def handicap
+    hard_mode? ? 1 : 0
+  end
+
   # Returns [PlayerState, OpponentState]
   def after_attack
     @after_attack ||= [
-      PlayerState.new(player_state.hp - boss_attack + healing, player_state.mana + recharge - spell_cost),
+      PlayerState.new(
+        player_state.hp - boss_attack + healing - handicap,
+        player_state.mana + recharge - spell_cost
+      ),
       OpponentState.new(opponent_state.hp - player_attack - poison),
     ]
   end
 
   def player_wins?
+    return false if player_state.hp - handicap <= 0
+
     player, opponent = after_effects
     return true if opponent.hp <= 0
 
-    _, opponent = after_attack
+    player, opponent = after_attack
     return true if opponent.hp <= 0 && player.hp > 0
 
     false
   end
 
   def boss_wins?
+    return true if player_state.hp - handicap <= 0
+
     player, opponent = after_effects
     return true if player.hp <= 0
     return false if opponent.hp <= 0
 
-    _, opponent = after_attack
+    player, opponent = after_attack
     return true if player.hp <= 0 && opponent.hp > 0
 
     return possible_spells.empty?
@@ -380,33 +398,71 @@ class GameTree
     end
   end
 
+  def winners?(games)
+    games.filter(&:player_wins?)
+  end
+
+  def player_moves(games)
+    games.flat_map do |game|
+      game.possible_spells.map do |spell|
+        game.apply(spell)
+      end
+    end.compact
+  end
+
+  def boss_moves(games)
+    games.map do |game|
+      game.apply
+    end.filter do |game|
+      !game.boss_wins?
+    end
+  end
+
+  def last_check(winner)
+    mana = winner.total_mana
+
+    possible_stragglers = @games.entries.filter do |key, games|
+      key < mana
+    end.flat_map do |key, games|
+      games
+    end
+
+    return winner if possible_stragglers.empty?
+
+    while !possible_stragglers.empty?
+      possible_stragglers = player_moves(possible_stragglers)
+        .filter{ |game| game.total_mana < mana }
+      if !(winners = winners?(possible_stragglers)).empty?
+        return winners.min_by(&:total_mana)
+      end
+
+      possible_stragglers = boss_moves(possible_stragglers)
+        .filter{ |game| game.total_mana < mana }
+      if !(winners = winners?(possible_stragglers)).empty?
+        return winners.min_by(&:total_mana)
+      end
+    end
+
+    winner
+  end
+
   def part1
     @games ||= {0 => [Game.new($player, $boss, [])]}
     loop do
-      next_games = @games[min_key].flat_map do |game|
-        game.possible_spells.map do |spell|
-          game.apply(spell)
-        end
-      end.compact
+      next_games = player_moves(@games[min_key])
       # puts "Computing games with mana #{min_key}, found #{next_games.size} games"
       # puts "Manas: #{next_games.map(&:total_mana).join(", ")}"
 
-      winners = next_games.filter(&:player_wins?)
-      if !winners.empty?
+      if !(winners = winners?(next_games)).empty?
         puts "Winners: #{winners.map(&:total_mana).join(", ")}"
-        return winners.min_by(&:total_mana)
+        return last_check(winners.min_by(&:total_mana))
       end
 
-      next_games = next_games.map do |game|
-        game.apply
-      end.filter do |game|
-        !game.boss_wins?
-      end
+      next_games = boss_moves(next_games)
 
-      winners = next_games.filter(&:player_wins?)
-      if !winners.empty?
+      if !(winners = winners?(next_games)).empty?
         puts "Winners: #{winners.map(&:total_mana).join(", ")}"
-        return winners.min_by(&:total_mana)
+        return last_check(winners.min_by(&:total_mana))
       end
 
       @games.delete(min_key)
@@ -417,5 +473,11 @@ end
 
 @game_tree = GameTree.new
 
+# PART 1
 # 801 too low <- got by running @game_tree.part1 but bug on line 337 returned min_key
 # 854 too low <- got by running @game_tree.part1.total_mana
+# 953 correct <- forgot to exclude double-casted spells
+
+# PART 2
+# 1382 <- too high, got by running @game_tree.part1.total_mana
+# 1408 <- too high, got by running @game_tree.part1.total_mana with the possible_stragglers
