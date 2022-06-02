@@ -140,8 +140,12 @@ class Turn
     true
   end
 
+  def player_turn?
+    attacker == :player
+  end
+
   def handicap
-    hard_mode? ? 1 : 0
+    hard_mode? && player_turn? ? 1 : 0
   end
 
   # Returns [PlayerState, OpponentState]
@@ -338,6 +342,14 @@ $boss = Boss.new(55, 8)
 # $boss = $boss_2
 
 class GameTree
+  def min_example_1
+    part1(Game.new($player_1, $boss_1, []))
+  end
+
+  def min_example_2
+    part1(Game.new($player_1, $boss_2, []))
+  end
+
   def compute_example_game_1
     Game.new($player_1, $boss_1, [])
       .apply($spell_book.find("Poison"))
@@ -464,9 +476,11 @@ class GameTree
     winner
   end
 
-  def part1
-    @games = {0 => [Game.new($player, $boss, [])]}
+  def part1(initial_game = Game.new($player, $boss, []))
+    @games = {0 => [initial_game]}
     loop do
+      return false if @games.empty?
+      puts "Games: #{@games.size}"
       next_games = player_moves(@games[min_key])
       # puts "Computing games with mana #{min_key}, found #{next_games.size} games"
       # puts "Manas: #{next_games.map(&:total_mana).join(", ")}"
@@ -488,12 +502,13 @@ class GameTree
     end
   end
 
+  KNOWN_LARGE_MANA = 1295
   def part2(depth = 0, games = [Game.new($player, $boss, [])])
     # We know a ceiling for part 2, so we know the max number of spells
     # 26 is the max
     @winners = []
     if depth > 26
-      return 1382
+      return KNOWN_LARGE_MANA
     end
 
     games = games.flat_map do |game|
@@ -520,10 +535,11 @@ class GameTree
       boss_move
     end
 
+    games = games.filter{ |g| g.total_mana < KNOWN_LARGE_MANA }
     puts "Depth #{depth}, #{games.size} games"
     min = @winners.min_by(&:total_mana)&.total_mana
     puts "Found min mana #{min} of #{@winners.size} at depth #{depth} -> #{@winners.map(&:total_mana).join(", ")}"
-    [min || 1382, part2(depth+1, games)].min
+    [min || KNOWN_LARGE_MANA, part2(depth+1, games)].min
   end
 end
 
@@ -537,3 +553,4 @@ end
 # PART 2
 # 1382 <- too high, got by running @game_tree.part1.total_mana
 # 1408 <- too high, got by running @game_tree.part1.total_mana with the possible_stragglers
+# 1295 <- too high, In its current state, part2 ran long until I added the filter
