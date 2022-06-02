@@ -155,30 +155,48 @@ class Turn
     ]
   end
 
+  def winner?
+    return :boss if player_state.hp - handicap <= 0
+
+    return :player if after_effects[1].hp <= 0
+
+    return :player if after_attack[1].hp <= 0
+
+    return :boss if after_attack[0].hp <= 0
+  end
+
   def player_wins?
-    return false if player_state.hp - handicap <= 0
-
-    player, opponent = after_effects
-    return true if opponent.hp <= 0
-
-    player, opponent = after_attack
-    return true if opponent.hp <= 0 && player.hp > 0
-
-    false
+    winner? == :player
   end
 
   def boss_wins?
-    return true if player_state.hp - handicap <= 0
-
-    player, opponent = after_effects
-    return true if player.hp <= 0
-    return false if opponent.hp <= 0
-
-    player, opponent = after_attack
-    return true if player.hp <= 0 && opponent.hp > 0
-
-    return possible_spells.empty?
+    winner? == :boss
   end
+
+  # def player_wins?
+  #   return false if player_state.hp - handicap <= 0
+
+  #   player, opponent = after_effects
+  #   return true if opponent.hp <= 0
+
+  #   player, opponent = after_attack
+  #   return true if opponent.hp <= 0 && player.hp > 0
+
+  #   false
+  # end
+
+  # def boss_wins?
+  #   return true if player_state.hp - handicap <= 0
+
+  #   player, opponent = after_effects
+  #   return true if player.hp <= 0
+  #   return false if opponent.hp <= 0
+
+  #   player, opponent = after_attack
+  #   return true if player.hp <= 0 && opponent.hp > 0
+
+  #   return possible_spells.empty?
+  # end
 
   def remaining_mana
     after_attack.first.mana
