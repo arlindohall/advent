@@ -9,17 +9,22 @@ OpponentState = Struct.new(:hp)
 Turn = Struct.new(:attacker, :player_state, :opponent_state, :effects, :action)
 
 Attack = Struct.new(:damage)
-Spell = Struct.new(:name, :cost, :damage, :heal, :effect)
-Effect = Struct.new(:timer, :armor, :damage, :mana)
+Spell = Struct.new(:name, :cost, :damage, :heal, :effect, :as_sentence)
+Effect = Struct.new(:timer, :armor, :damage, :mana, :name)
 
 class SpellBook
   def book
     @spells ||= [
-      Spell.new("Magic Missile", 53, 4, 0, nil),
-      Spell.new("Drain", 73, 2, 2, nil),
-      Spell.new("Shield", 113, 0, 0, Effect.new(6, 7, 0, 0)),
-      Spell.new("Poison", 173, 0, 0, Effect.new(6, 0, 3, 0)),
-      Spell.new("Recharge", 229, 0, 0, Effect.new(5, 0, 0, 101))
+      Spell.new("Magic Missile", 53, 4, 0, nil,
+        "Player casts Magic Missile, dealing 4 damage."),
+      Spell.new("Drain", 73, 2, 2, nil,
+        "Player casts Drain, dealing 2 damage, and healing 2 hit points."),
+      Spell.new("Shield", 113, 0, 0, Effect.new(6, 7, 0, 0, "Shield"),
+        "Player casts Shield, increasing armor by 7 for 6 turns."),
+      Spell.new("Poison", 173, 0, 0, Effect.new(6, 0, 3, 0, "Poison"),
+        "Player casts Poison."),
+      Spell.new("Recharge", 229, 0, 0, Effect.new(5, 0, 0, 101, "Recharge"),
+        "Player casts Recharge."),
     ].map do |spell|
       [spell.name, spell]
     end.to_h
@@ -31,6 +36,19 @@ class SpellBook
 
   def find(name)
     book[name] or raise "No spell named #{name}"
+  end
+end
+
+class Effect
+  def as_sentence
+    case name
+    when "Shield"
+      "Shield's timer is now #{timer}."
+    when "Poison"
+      "Poison deals 3 damage; its timer is now #{timer}."
+    when "Recharge"
+      "Recharge provides 101 mana; its timer is now #{timer}."
+    end
   end
 end
 
@@ -55,6 +73,10 @@ class Attack
 
   def cost
     0
+  end
+
+  def as_sentence
+    "Boss attacks for #{damage} damage"
   end
 end
 
@@ -138,6 +160,17 @@ class Turn
 
     false
   end
+
+  def show
+    puts <<~EOS
+      -- #{attacker == :player ? "Player" : "Boss"} turn --
+      - Player has #{player_state.hp} hp, #{player_state.mana} mana
+      - Boss has #{opponent_state.hp} hp
+      #{effects.map(&:as_sentence).join("\n")}
+      #{action.as_sentence}
+      #{player_wins? ? "Player wins" : ""}#{boss_wins? ? "Boss wins" : ""}
+    EOS
+  end
 end
 
 class Game
@@ -188,6 +221,11 @@ class Game
     @total_mana ||= turns.map do |turn|
       turn.action.cost
     end.sum
+  end
+
+  def show
+    turns.each(&:show)
+    nil
   end
 
   private
