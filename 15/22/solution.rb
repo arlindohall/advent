@@ -465,7 +465,7 @@ class GameTree
   end
 
   def part1
-    @games ||= {0 => [Game.new($player, $boss, [])]}
+    @games = {0 => [Game.new($player, $boss, [])]}
     loop do
       next_games = player_moves(@games[min_key])
       # puts "Computing games with mana #{min_key}, found #{next_games.size} games"
@@ -488,16 +488,15 @@ class GameTree
     end
   end
 
-  def part2(depth = 0)
+  def part2(depth = 0, games = [Game.new($player, $boss, [])])
     # We know a ceiling for part 2, so we know the max number of spells
     # 26 is the max
-    @games ||= [Game.new($player, $boss, [])]
     @winners = []
     if depth > 26
       return 1382
     end
 
-    @games = @games.flat_map do |game|
+    games = games.flat_map do |game|
       player_move = game.possible_spells.map do |spell|
         game.apply(spell)
       end.filter do |game|
@@ -521,9 +520,10 @@ class GameTree
       boss_move
     end
 
+    puts "Depth #{depth}, #{games.size} games"
     min = @winners.min_by(&:total_mana)&.total_mana
     puts "Found min mana #{min} of #{@winners.size} at depth #{depth} -> #{@winners.map(&:total_mana).join(", ")}"
-    [min || 1382, part2(depth+1)].min
+    [min || 1382, part2(depth+1, games)].min
   end
 end
 
