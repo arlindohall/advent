@@ -166,9 +166,17 @@ class Turn
     after_attack.first.mana
   end
 
+  def in_effect?(spell)
+    effects.any? do |effect|
+      effect.name == spell.name && effect.timer > 0
+    end
+  end
+
   def possible_spells
     $spell_book.spells.filter do |spell|
       spell.cost <= remaining_mana
+    end.filter do |spell|
+      !in_effect?(spell)
     end
   end
 
