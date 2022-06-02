@@ -5,7 +5,7 @@ Wizard = Struct.new(:hp, :mana)
 Boss = Struct.new(:hp, :damage)
 
 PlayerState = Struct.new(:hp, :mana)
-OpponentState = Struct.new(:hp, :damage)
+OpponentState = Struct.new(:hp)
 Turn = Struct.new(:attacker, :player_state, :opponent_state, :effects, :action)
 
 Attack = Struct.new(:damage)
@@ -71,7 +71,7 @@ class Turn
   def after_effects
     @after_effects ||= [
       PlayerState.new(player_state.hp, player_state.mana + recharge),
-      OpponentState.new(opponent_state.hp - poison, opponent_state.damage - armor)
+      OpponentState.new(opponent_state.hp - poison),
     ]
   end
 
@@ -85,7 +85,7 @@ class Turn
 
   def boss_attack
     if action.is_attack?
-      action.damage
+      [action.damage - armor, 1].max
     else
       0
     end
@@ -111,7 +111,7 @@ class Turn
   def after_attack
     @after_attack ||= [
       PlayerState.new(player_state.hp - boss_attack + healing, player_state.mana + recharge - spell_cost),
-      OpponentState.new(opponent_state.hp - player_attack - poison, opponent_state.damage - armor)
+      OpponentState.new(opponent_state.hp - player_attack - poison),
     ]
   end
 
@@ -171,7 +171,7 @@ class Game
       if turns.empty?
         [
           PlayerState.new(wizard.hp, wizard.mana),
-          OpponentState.new(boss.hp, boss.damage)
+          OpponentState.new(boss.hp),
         ]
       else
         turns.last.after_attack
@@ -192,7 +192,7 @@ class Game
         effect.clone.tap do |e|
           e.timer -= 1
         end
-      end
+      end.filter{|e| e.timer >= 0}
     end
 
     def last_effect
@@ -211,9 +211,9 @@ class GameTree
   def compute_example_game_1
     Game.new($player_1, $boss_1, [])
       .apply($spell_book.find("Poison"))
-      .apply
+      .apply(Attack.new)
       .apply($spell_book.find("Magic Missile"))
-      .apply
+      .apply(Attack.new)
   end
 
   def example_game_1
@@ -224,14 +224,14 @@ class GameTree
         Turn.new(
           :player,
           PlayerState.new(10, 250),
-          OpponentState.new(13, 8),
+          OpponentState.new(13),
           [],
           $spell_book.find("Poison"),
         ),
         Turn.new(
           :boss,
           PlayerState.new(10, 77),
-          OpponentState.new(13, 8),
+          OpponentState.new(13),
           [
             $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 5 },
           ],
@@ -240,7 +240,7 @@ class GameTree
         Turn.new(
           :player,
           PlayerState.new(2, 77),
-          OpponentState.new(10, 8),
+          OpponentState.new(10),
           [
             $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 4 },
           ],
@@ -249,7 +249,7 @@ class GameTree
         Turn.new(
           :boss,
           PlayerState.new(2, 24),
-          OpponentState.new(3, 8),
+          OpponentState.new(3),
           [
             $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 3 },
           ],
@@ -259,11 +259,18 @@ class GameTree
     )
   end
 
-  def example_game_2
-    Game.new(
-      $player_1,
-      $boss_2,
-    )
+  def compute_example_game_2
+    Game.new($player_1, $boss_2, [])
+      .apply($spell_book.find("Recharge"))
+      .apply(Attack.new)
+      .apply($spell_book.find("Shield"))
+      .apply(Attack.new)
+      .apply($spell_book.find("Drain"))
+      .apply(Attack.new)
+      .apply($spell_book.find("Poison"))
+      .apply(Attack.new)
+      .apply($spell_book.find("Magic Missile"))
+      .apply(Attack.new)
   end
 end
 
