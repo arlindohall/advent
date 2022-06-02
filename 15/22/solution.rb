@@ -4,10 +4,11 @@ Game = Struct.new(:wizard, :boss, :turns)
 Wizard = Struct.new(:hp, :mana)
 Boss = Struct.new(:hp, :damage)
 
-PlayerState = Struct.new(:hp, :mana, :armor)
+PlayerState = Struct.new(:hp, :mana)
 OpponentState = Struct.new(:hp, :damage)
-Turn = Struct.new(:attacker, :player_state, :opponent_state, :action, :effects)
+Turn = Struct.new(:attacker, :player_state, :opponent_state, :effects, :action)
 
+Attack = Struct.new(:damage)
 Spell = Struct.new(:name, :cost, :damage, :heal, :effect)
 Effect = Struct.new(:timer, :armor, :damage, :mana)
 
@@ -29,3 +30,171 @@ class SpellBook
   end
 end
 
+class Spell
+  def is_spell?
+    true
+  end
+
+  def is_attack?
+    false
+  end
+end
+
+class Attack
+  def is_spell?
+    false
+  end
+
+  def is_attack?
+    true
+  end
+end
+
+$spell_book = SpellBook.new
+$player_1 = Wizard.new(250, 10)
+$boss_1 = Boss.new(13, 8)
+$boss_2 = Boss.new(14, 8)
+
+class Turn
+  def armor
+    @armor ||= effects.map(&:armor).compact.sum
+  end
+
+  def recharge
+    @recharge ||= effects.map(&:mana).compact.sum
+  end
+
+  def poison
+    @poison ||= effects.map(&:damage).compact.sum
+  end
+
+  # Returns [PlayerState, OpponentState]
+  def after_effects
+    @after_effects ||= [
+      PlayerState.new(player_state.hp, player_state.mana + recharge),
+      OpponentState.new(opponent_state.hp - poison, opponent_state.damage - armor)
+    ]
+  end
+
+  def healing
+    if action.respond_to? :heal
+      action.heal 
+    else
+      0
+    end
+  end
+
+  def boss_attack
+    if action.is_attack?
+      action.damage
+    else
+      0
+    end
+  end
+
+  def player_attack
+    if action.is_spell?
+      action.damage
+    else
+      0
+    end
+  end
+
+  def spell_cost
+    if action.is_spell?
+      action.cost
+    else
+      0
+    end
+  end
+
+  # Returns [PlayerState, OpponentState]
+  def after_attack
+    @after_attack ||= [
+      PlayerState.new(player_state.hp - boss_attack + healing, player_state.mana + recharge - spell_cost),
+      OpponentState.new(opponent_state.hp - player_attack - poison, opponent_state.damage - armor)
+    ]
+  end
+
+  def player_wins?
+    player, opponent = after_effects
+    return true if opponent.hp <= 0
+
+    _, opponent = after_attack
+    return true if opponent.hp <= 0 && player.hp > 0
+
+    false
+  end
+
+  def boss_wins?
+    player, opponent = after_effects
+    return true if player.hp <= 0
+
+    _, opponent = after_attack
+    return true if player.hp <= 0 && opponent.hp > 0
+
+    false
+  end
+end
+
+class GameTree
+  def compute_example_game_1
+    Game.new($player_1, $boss_1, [])
+      .apply($spell_book.find("Poison"))
+      .apply
+      .apply($spell_book.find("Magic Missile"))
+      .apply
+  end
+
+  def example_game_1
+    Game.new(
+      $player_1,
+      $boss_1,
+      [
+        Turn.new(
+          :player,
+          PlayerState.new(10, 250),
+          OpponentState.new(13, 8),
+          [],
+          $spell_book.find("Poison"),
+        ),
+        Turn.new(
+          :boss,
+          PlayerState.new(10, 77),
+          OpponentState.new(13, 8),
+          [
+            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 5 },
+          ],
+          Attack.new(8),
+        ),
+        Turn.new(
+          :player,
+          PlayerState.new(2, 77),
+          OpponentState.new(10, 8),
+          [
+            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 4 },
+          ],
+          $spell_book.find("Magic Missile"),
+        ),
+        Turn.new(
+          :boss,
+          PlayerState.new(2, 24),
+          OpponentState.new(3, 8),
+          [
+            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 3 },
+          ],
+          Attack.new(8),
+        ),
+      ]
+    )
+  end
+
+  def example_game_2
+    Game.new(
+      $player_1,
+      $boss_2,
+    )
+  end
+end
+
+@game_tree = GameTree.new
