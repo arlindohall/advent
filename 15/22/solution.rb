@@ -307,221 +307,49 @@ class Game
 end
 
 $spell_book = SpellBook.new
-$player_1 = Wizard.new(10, 250)
-$boss_1 = Boss.new(13, 8)
-$boss_2 = Boss.new(14, 8)
-
 $player = Wizard.new(50, 500)
 $boss = Boss.new(55, 8)
-# $player = $player_1
-# $boss = $boss_2
 
 $hard_mode = true
 
 class GameTree
-  def min_example_1
-    part1(Game.new($player_1, $boss_1, []))
-  end
-
-  def min_example_2
-    part1(Game.new($player_1, $boss_2, []))
-  end
-
-  def compute_example_game_1
-    Game.new($player_1, $boss_1, [])
-      .apply($spell_book.find("Poison"))
-      .apply(Attack.new)
-      .apply($spell_book.find("Magic Missile"))
-      .apply(Attack.new)
-  end
-
-  def compute_example_game_2
-    Game.new($player_1, $boss_2, [])
-      .apply($spell_book.find("Recharge"))
-      .apply(Attack.new)
-      .apply($spell_book.find("Shield"))
-      .apply(Attack.new)
-      .apply($spell_book.find("Drain"))
-      .apply(Attack.new)
-      .apply($spell_book.find("Poison"))
-      .apply(Attack.new)
-      .apply($spell_book.find("Magic Missile"))
-      .apply(Attack.new)
-  end
-
-  ###### PART 1 SOLUTION ######
-
-  def min_key
-    @games.keys.min
-  end
-
-  def merge_games(games)
-    games.each do |game|
-      @games[game.total_mana] ||= []
-      @games[game.total_mana].push(game)
-    end
-  end
-
-  def winners?(games)
-    games.filter(&:player_wins?)
-  end
-
-  def player_moves(games)
-    games.flat_map do |game|
-      game.possible_spells.map do |spell|
-        game.apply(spell)
+  def player_turns(game)
+    game.possible_spells.map do |spell|
+      next_game = game.apply(spell)
+      if next_game.total_mana < @min_mana && next_game.player_wins?
+        @min_mana = next_game.total_mana
+        @winner = next_game
       end
+
+      next_game if !next_game.boss_wins? && next_game.total_mana < @min_mana
     end.compact
   end
 
-  def boss_moves(games)
+  def boss_turns(games)
     games.map do |game|
-      game.apply
-    end.filter do |game|
-      !game.boss_wins?
-    end
-  end
-
-  def last_check(winner)
-    mana = winner.total_mana
-
-    possible_stragglers = @games.entries.filter do |key, games|
-      key < mana
-    end.flat_map do |key, games|
-      games
-    end
-
-    return winner if possible_stragglers.empty?
-
-    while !possible_stragglers.empty?
-      possible_stragglers = player_moves(possible_stragglers)
-        .filter{ |game| game.total_mana < mana }
-      if !(winners = winners?(possible_stragglers)).empty?
-        return winners.min_by(&:total_mana)
+      next_game = game.apply
+      if next_game.total_mana < @min_mana && next_game.player_wins?
+        @min_mana = next_game.total_mana
+        @winner = next_game
       end
 
-      possible_stragglers = boss_moves(possible_stragglers)
-        .filter{ |game| game.total_mana < mana }
-      if !(winners = winners?(possible_stragglers)).empty?
-        return winners.min_by(&:total_mana)
-      end
+      next_game if !next_game.boss_wins? && next_game.total_mana < @min_mana
+    end.compact
+  end
+
+  def queue_solution
+    @queue = [Game.new($player, $boss, [])]
+    @min_mana = 10000
+    @winner = nil
+
+    while !@queue.empty?
+      game = @queue.shift
+      pt = player_turns(game)
+      bt = boss_turns(pt)
+
+      bt.each{ |g| @queue.push(g) }
     end
-
-    winner
-  end
-
-  KNOWN_LARGE_MANA = 1295
-  def part1(initial_game = Game.new($player, $boss, []))
-    @games = {0 => [initial_game]}
-    rounds = 0
-    min = KNOWN_LARGE_MANA
-    while !@games.empty? && min_key < min
-      return false if @games.empty?
-      rounds += 1
-      tree_depth_min = @games[min_key].map(&:turns).map(&:size).min
-      tree_depth_max = @games[min_key].map(&:turns).map(&:size).max
-      # puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}  #{tree_depth_max} < TreeDepth < #{tree_depth_min}"
-
-      next_games = player_moves(@games[min_key])
-        .filter{ |game| game.total_mana <= min }
-        .filter{ |game| !game.boss_wins? }
-      update_candidates(next_games)
-
-      unless winners?(next_games).empty?
-        min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
-        puts "Found #{winners?(next_games).size} winners of #{next_games.size} after player, min: #{min}"
-      end
-
-      next_games = boss_moves(next_games)
-        .filter{ |game| game.total_mana <= min }
-        .filter{ |game| !game.boss_wins? }
-      update_candidates(next_games)
-
-      unless winners?(next_games).empty?
-        min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
-        puts "Found #{winners?(next_games).size} winners of #{next_games.size} after boss, min: #{min}"
-      end
-
-      @games.delete(min_key)
-      merge_games(next_games)
-    end
-
-    min
-  end
-
-  def candidates
-    @candidates ||= []
-  end
-
-  def candidates=(candidates)
-    @candidates = candidates
-  end
-
-  def update_candidates(games)
-    self.candidates += games.filter{ |g| g.total_mana == 1289 }
-    # @candidates += games.filter do |game|
-    #   mana = game.total_mana
-    #   $spell_book.spells.map(&:cost).map do |cost|
-    #     mana + cost == 1289
-    #   end.any?
-    # end
-  end
-
-  def update_winners(moves)
-    moves = moves.group_by(&:player_wins?)
-    moves, winners = [moves[false] || [], moves[true] || []]
-    @winners += winners
-
-    moves
-  end
-
-  # Not actually part 2 just a different algorithm
-  def part2(depth = 0, games = [Game.new($player, $boss, [])])
-    # We know a ceiling for part 2, so we know the max number of spells
-    # 26 is the max
-    @winners = []
-    if depth > 26
-      return KNOWN_LARGE_MANA
-    end
-
-    games = games.flat_map do |game|
-      player_move = game.possible_spells.map do |spell|
-        game.apply(spell)
-
-      end.filter do |game|
-        !game.boss_wins?
-      end
-
-      player_move = update_winners(player_move)
-
-      boss_move = player_move.map do |game|
-        game.apply
-      end.filter do |game|
-        !game.boss_wins?
-      end
-
-      update_winners(boss_move)
-    end
-
-    games = games.filter{ |g| g.total_mana < KNOWN_LARGE_MANA }
-    puts "Depth #{depth}, #{games.size} games"
-    min = @winners.min_by(&:total_mana)&.total_mana
-    puts "Found min mana #{min} of #{@winners.size} at depth #{depth} -> #{@winners.map(&:total_mana).join(", ")}"
-    [min || KNOWN_LARGE_MANA, part2(depth+1, games)].min
   end
 end
 
 @game_tree = GameTree.new
-
-# PART 1
-# 801 too low <- got by running @game_tree.part1 but bug on line 337 returned min_key
-# 854 too low <- got by running @game_tree.part1.total_mana
-# 953 correct <- forgot to exclude double-casted spells
-
-# PART 2
-# 1382 <- too high, got by running @game_tree.part1.total_mana
-# 1408 <- too high, got by running @game_tree.part1.total_mana with the possible_stragglers
-# 1295 <- too high, In its current state, part2 ran long until I added the filter
-
-# Cheated to find the real answer 1289, but I don't have any games with that mana
-# I'm going to see what combination of spells does that maybe?
