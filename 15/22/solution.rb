@@ -137,7 +137,7 @@ class Turn
   end
 
   def hard_mode?
-    true
+    $hard_mode
   end
 
   def player_turn?
@@ -176,31 +176,6 @@ class Turn
   def boss_wins?
     winner? == :boss
   end
-
-  # def player_wins?
-  #   return false if player_state.hp - handicap <= 0
-
-  #   player, opponent = after_effects
-  #   return true if opponent.hp <= 0
-
-  #   player, opponent = after_attack
-  #   return true if opponent.hp <= 0 && player.hp > 0
-
-  #   false
-  # end
-
-  # def boss_wins?
-  #   return true if player_state.hp - handicap <= 0
-
-  #   player, opponent = after_effects
-  #   return true if player.hp <= 0
-  #   return false if opponent.hp <= 0
-
-  #   player, opponent = after_attack
-  #   return true if player.hp <= 0 && opponent.hp > 0
-
-  #   return possible_spells.empty?
-  # end
 
   def remaining_mana
     after_attack.first.mana
@@ -341,6 +316,8 @@ $boss = Boss.new(55, 8)
 # $player = $player_1
 # $boss = $boss_2
 
+$hard_mode = true
+
 class GameTree
   def min_example_1
     part1(Game.new($player_1, $boss_1, []))
@@ -356,49 +333,6 @@ class GameTree
       .apply(Attack.new)
       .apply($spell_book.find("Magic Missile"))
       .apply(Attack.new)
-  end
-
-  def example_game_1
-    Game.new(
-      $player_1,
-      $boss_1,
-      [
-        Turn.new(
-          :player,
-          PlayerState.new(10, 250),
-          OpponentState.new(13),
-          [],
-          $spell_book.find("Poison"),
-        ),
-        Turn.new(
-          :boss,
-          PlayerState.new(10, 77),
-          OpponentState.new(13),
-          [
-            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 5 },
-          ],
-          Attack.new(8),
-        ),
-        Turn.new(
-          :player,
-          PlayerState.new(2, 77),
-          OpponentState.new(10),
-          [
-            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 4 },
-          ],
-          $spell_book.find("Magic Missile"),
-        ),
-        Turn.new(
-          :boss,
-          PlayerState.new(2, 24),
-          OpponentState.new(3),
-          [
-            $spell_book.find("Poison").effect.clone.tap{ |e| e.timer = 3 },
-          ],
-          Attack.new(8),
-        ),
-      ]
-    )
   end
 
   def compute_example_game_2
@@ -484,7 +418,9 @@ class GameTree
     while !@games.empty? && min_key < min
       return false if @games.empty?
       rounds += 1
-      puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}"
+      tree_depth_min = @games[min_key].map(&:turns).map(&:size).min
+      tree_depth_max = @games[min_key].map(&:turns).map(&:size).max
+      puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}  #{tree_depth_max} < TreeDepth < #{tree_depth_min}"
 
       next_games = player_moves(@games[min_key])
         .filter{ |game| game.total_mana <= min }
@@ -511,6 +447,15 @@ class GameTree
     min
   end
 
+  def update_winners(moves)
+    moves = moves.group_by(&:player_wins?)
+    moves, winners = [moves[false] || [], moves[true] || []]
+    @winners += winners
+
+    moves
+  end
+
+  # Not actually part 2 just a different algorithm
   def part2(depth = 0, games = [Game.new($player, $boss, [])])
     # We know a ceiling for part 2, so we know the max number of spells
     # 26 is the max
@@ -522,13 +467,12 @@ class GameTree
     games = games.flat_map do |game|
       player_move = game.possible_spells.map do |spell|
         game.apply(spell)
+
       end.filter do |game|
         !game.boss_wins?
       end
 
-      player_move = player_move.group_by(&:player_wins?)
-      player_move, winners = [player_move[false] || [], player_move[true] || []]
-      @winners += winners
+      player_move = update_winners(player_move)
 
       boss_move = player_move.map do |game|
         game.apply
@@ -536,11 +480,7 @@ class GameTree
         !game.boss_wins?
       end
 
-      boss_move = boss_move.group_by(&:player_wins?)
-      boss_move, winners = [boss_move[false] || [], boss_move[true] || []]
-      @winners += winners
-
-      boss_move
+      update_winners(boss_move)
     end
 
     games = games.filter{ |g| g.total_mana < KNOWN_LARGE_MANA }
