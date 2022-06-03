@@ -136,16 +136,8 @@ class Turn
     end
   end
 
-  def hard_mode?
-    $hard_mode
-  end
-
-  def player_turn?
-    attacker == :player
-  end
-
   def handicap
-    hard_mode? && player_turn? ? 1 : 0
+    $hard_mode && attacker == :player ? 1 : 0
   end
 
   # Returns [PlayerState, OpponentState]
@@ -167,14 +159,6 @@ class Turn
     return :player if after_attack.last.hp <= 0
 
     return :boss if after_attack.first.hp <= 0
-  end
-
-  def player_wins?
-    winner? == :player
-  end
-
-  def boss_wins?
-    winner? == :boss
   end
 
   def remaining_mana
@@ -219,7 +203,7 @@ class Turn
       - Boss has #{opponent_state.hp} hp
       #{effects.map(&:as_sentence).join("\n")}
       #{action.as_sentence}
-      #{player_wins? ? "Player wins" : ""}#{boss_wins? ? "Boss wins" : ""}
+      #{winner? == :player ? "Player wins" : ""}#{winner?  == :boss ? "Boss wins" : ""}
     EOS
   end
 end
@@ -244,22 +228,13 @@ class Game
     )
   end
 
-  def boss_wins?
+  def winner?
     return false if turns.empty?
-    turns.last.boss_wins?
-  end
-
-  def player_wins?
-    return false if turns.empty?
-    turns.last.player_wins?
+    turns.last.winner?
   end
 
   def possible_spells
-    if turns.empty?
-      $spell_book.spells
-    else
-      turns.last.possible_spells
-    end
+    turns.&last.&possible_spells || $spell_book.spells
   end
 
   def total_mana
@@ -279,9 +254,7 @@ class Game
 
   private
     def next_player
-      if turns.empty?
-        :player
-      elsif turns.last.attacker == :boss
+      if turns.empty? || turns.last.attacker == :boss
         :player
       else
         :boss
@@ -289,22 +262,14 @@ class Game
     end
 
     def next_states
-      if turns.empty?
-        [
-          PlayerState.new(wizard.hp, wizard.mana),
-          OpponentState.new(boss.hp),
-        ]
-      else
-        turns.last.after_attack
-      end
+      turns&.last&.after_attack || [
+        PlayerState.new(wizard.hp, wizard.mana),
+        OpponentState.new(boss.hp),
+      ]
     end
 
     def next_effects
-      if turns.empty?
-        []
-      else
-        turns.last.increment_effects
-      end
+      turns&.last&.increment_effects || []
     end
 
     # Assumes at least 1 turn
@@ -320,24 +285,24 @@ class GameTree
   def player_turns(game)
     game.possible_spells.map do |spell|
       next_game = game.apply(spell)
-      if next_game.total_mana < @min_mana && next_game.player_wins?
+      if next_game.total_mana < @min_mana && next_game.winner? == :player
         @min_mana = next_game.total_mana
         @winner = next_game
       end
 
-      next_game if !next_game.boss_wins? && next_game.total_mana < @min_mana
+      next_game if !next_game.winner? == :boss && next_game.total_mana < @min_mana
     end.compact
   end
 
   def boss_turns(games)
     games.map do |game|
       next_game = game.apply
-      if next_game.total_mana < @min_mana && next_game.player_wins?
+      if next_game.total_mana < @min_mana && next_game.winner? = :player
         @min_mana = next_game.total_mana
         @winner = next_game
       end
 
-      next_game if !next_game.boss_wins? && next_game.total_mana < @min_mana
+      next_game if !next_game.winner? == :boss && next_game.total_mana < @min_mana
     end.compact
   end
 
