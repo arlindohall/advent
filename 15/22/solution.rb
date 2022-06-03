@@ -420,11 +420,12 @@ class GameTree
       rounds += 1
       tree_depth_min = @games[min_key].map(&:turns).map(&:size).min
       tree_depth_max = @games[min_key].map(&:turns).map(&:size).max
-      puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}  #{tree_depth_max} < TreeDepth < #{tree_depth_min}"
+      # puts "Games: #{@games.size}, Smallest: #{min_key} Rounds: #{rounds}  #{tree_depth_max} < TreeDepth < #{tree_depth_min}"
 
       next_games = player_moves(@games[min_key])
         .filter{ |game| game.total_mana <= min }
         .filter{ |game| !game.boss_wins? }
+      update_candidates(next_games)
 
       unless winners?(next_games).empty?
         min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
@@ -434,6 +435,7 @@ class GameTree
       next_games = boss_moves(next_games)
         .filter{ |game| game.total_mana <= min }
         .filter{ |game| !game.boss_wins? }
+      update_candidates(next_games)
 
       unless winners?(next_games).empty?
         min = [min, winners?(next_games).min_by(&:total_mana).total_mana].min
@@ -445,6 +447,24 @@ class GameTree
     end
 
     min
+  end
+
+  def candidates
+    @candidates ||= []
+  end
+
+  def candidates=(candidates)
+    @candidates = candidates
+  end
+
+  def update_candidates(games)
+    self.candidates += games.filter{ |g| g.total_mana == 1289 }
+    # @candidates += games.filter do |game|
+    #   mana = game.total_mana
+    #   $spell_book.spells.map(&:cost).map do |cost|
+    #     mana + cost == 1289
+    #   end.any?
+    # end
   end
 
   def update_winners(moves)
@@ -502,3 +522,6 @@ end
 # 1382 <- too high, got by running @game_tree.part1.total_mana
 # 1408 <- too high, got by running @game_tree.part1.total_mana with the possible_stragglers
 # 1295 <- too high, In its current state, part2 ran long until I added the filter
+
+# Cheated to find the real answer 1289, but I don't have any games with that mana
+# I'm going to see what combination of spells does that maybe?
