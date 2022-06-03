@@ -182,7 +182,7 @@ class Turn
   end
 
   def in_effect?(spell)
-    effects.any? do |effect|
+    increment_effects.any? do |effect|
       effect.name == spell.name && effect.timer > 0
     end
   end
@@ -192,6 +192,23 @@ class Turn
       spell.cost <= remaining_mana
     end.filter do |spell|
       !in_effect?(spell)
+    end
+  end
+
+  def increment_effects
+    @increment_effects ||= effects.clone
+      .push(last_effect)
+      .compact
+      .map do |effect|
+        effect.clone.tap do |e|
+          e.timer -= 1
+        end
+      end.filter{ |e| e.timer >= 0 }
+  end
+
+  def last_effect
+    if action.is_spell?
+      action.effect
     end
   end
 
@@ -286,24 +303,11 @@ class Game
       if turns.empty?
         []
       else
-        increment_effects
+        turns.last.increment_effects
       end
     end
 
     # Assumes at least 1 turn
-    def increment_effects
-      turns.last.effects.clone.push(last_effect).compact.map do |effect|
-        effect.clone.tap do |e|
-          e.timer -= 1
-        end
-      end.filter{|e| e.timer >= 0}
-    end
-
-    def last_effect
-      if turns&.last&.action&.is_spell?
-        turns&.last&.action&.effect
-      end
-    end
 end
 
 $spell_book = SpellBook.new
@@ -349,6 +353,8 @@ class GameTree
 
       bt.each{ |g| @queue.push(g) }
     end
+
+    @winner
   end
 end
 
