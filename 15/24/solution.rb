@@ -1,10 +1,9 @@
 
-Grouping = Struct.new(:group1, :group2, :group3)
 Presents = Struct.new(:weights)
 class Presents
   def min_quantum_entangle
     smallest_group_1s.map do |grouping|
-      quantum_entanglement(grouping.group1)
+      quantum_entanglement(grouping)
     end.min
   end
 
@@ -13,30 +12,40 @@ class Presents
   end
 
   def smallest_group_1s
-    possible_groups.group_by do |grouping|
-      grouping.group1.size
-    end[possible_groups.map(&:group1).map(&:size).min]
+    possible_first_groups.group_by do |grouping|
+      grouping.size
+    end[possible_first_groups.map(&:size).min]
   end
 
-  def possible_groups
-    @possible_groups ||= groups(weights).flat_map do |group1|
-      groups(weights - group1).flat_map do |group2|
-        group3 = (weights - group1 - group2)
-        Grouping.new(group1, group2, group3)
-      end
-    end
+  def possible_first_groups
+    @possible_groups ||= groups(weights, weight, [], [])
   end
 
   def weight
     @weight ||= weights.sum / 3
   end
 
-  def groups(subgroup)
-    1.upto(subgroup.size).flat_map do |size|
-      subgroup.combination(size).filter do |group|
-        group.sum == weight
-      end
-    end
+  def groups(subgroup, desired_weight, found, rejected)
+    return [found] if desired_weight == 0 && exists_group?(subgroup + rejected, weight)
+    return [] if subgroup.empty?
+    return groups(subgroup.tail, desired_weight, found, rejected + [subgroup.first]) if subgroup.first > desired_weight
+
+    groups(subgroup.tail, desired_weight - subgroup.first, found + [subgroup.first], rejected) +
+      groups(subgroup.tail, desired_weight, found, rejected + [subgroup.first])
+  end
+
+  def exists_group?(subgroup, desired_weight)
+    return true if desired_weight == 0
+    return false if subgroup.empty?
+    return exists_group?(subgroup.tail, desired_weight) if subgroup.first > desired_weight
+
+    exists_group?(subgroup.tail, desired_weight - subgroup.first) || exists_group?(subgroup.tail, desired_weight)
+  end
+end
+
+class Array
+  def tail
+    self.drop(1)
   end
 end
 
@@ -72,3 +81,6 @@ end
 ).strip.split.map(&:to_i)
 
 @presents = Presents.new(@input)
+@first_groups = @presents.possible_first_groups
+
+# 114078007307 <- too high, was quitting early on empty subgroup but full rejected list
