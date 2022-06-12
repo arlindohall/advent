@@ -1,56 +1,59 @@
 
-Part = Struct.new(:text)
-Expansion = Struct.new(:characters, :times)
-
 class Message
   def initialize(text)
     @text = text
   end
 
-  def parse
-    @tokens = []
+  def expand
+    @text
+    while expandable?
+      expand_once
+    end
+  end
+
+  def expand_once
+    return self if !expandable?
+
+    characters, times, start, _end = first_group
+
+    beginning = @text[0...start]
+    expansion = times.times.map{ @text[_end..._end + characters] }.join
+    rest = @text[_end + characters..-1]
+
+    @text = beginning + expansion + rest
+
+    self
+  end
+
+  def expandable?
+    !first_group.nil?
+  end
+
+  def first_group
     @index = 0
-    tokenize
-  end
-
-  private
-
-  def tokenize
-    while !at_end?
-      case current
-      when '('
-        @tokens << read_expansion
-      else
-        @tokens << read_part
-      end
-    end
-    @tokens = @tokens.compact
-  end
-
-  def read_expansion
-    start = @index+1
-    until current == ')'
-      @index += 1
-    end
-    characters, times = @text[start..@index].split('x').map(&:to_i)
-    @index += 1
-    Expansion.new(characters, times)
-  end
-
-  def read_part
-    start = @index
     until at_end? || current == '('
       @index += 1
     end
-    Part.new(@text[start..@index-1])
-  end
 
-  def current
-    @text[@index]
+    return if at_end?
+
+    start = @index + 1
+    until current == ')'
+      @index += 1
+    end
+
+    characters, times = @text[start..@index - 1].split('x').map(&:to_i)
+    @index += 1
+
+    return [characters, times, start-1, @index]
   end
 
   def at_end?
     @index >= @text.length
+  end
+
+  def current
+    @text[@index]
   end
 
 end
