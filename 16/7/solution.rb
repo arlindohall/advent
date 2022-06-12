@@ -27,7 +27,7 @@ class Address
       @index += 1
       rest = parse
 
-      case parse
+      case rest
       when :end_of_string
         return string
       when :negative_abba
@@ -71,12 +71,22 @@ class Address
     end
 end
 
-# @input = <<~EOF.strip.lines.map(&:strip)
-#   abba[mnop]qrst
-#   abcd[bddb]xyyx
-#   aaaa[qwer]tyui
-#   ioxxoj[asdfgh]zxcvbn 
-# EOF
+@tests = <<~TESTS.strip.lines.map(&:strip)
+  abba[baab]
+  [baab]
+  abba[xxxx]
+  abba[abb]abba
+  [abba]xxxx
+  [abba]abba
+  [abba]aa]
+TESTS
+
+@example = <<~EOF.strip.lines.map(&:strip)
+  abba[mnop]qrst
+  abcd[bddb]xyyx
+  aaaa[qwer]tyui
+  ioxxoj[asdfgh]zxcvbn 
+EOF
 
 @input = <<~EOF.strip.lines.map(&:strip)
   rhamaeovmbheijj[hkwbkqzlcscwjkyjulk]ajsxfuemamuqcjccbc
