@@ -8,24 +8,33 @@ class Address
 
   def supports_tls?
     @index = 0
-    case parse
+    case parse_tls
     when :end_of_string, :negative_abba
       false
     when String, Array
       true
     else
-      throw "Unexpected return value from parse"
+      throw "Unexpected return value from parse_tls"
     end
   end
 
-  def parse
-    return :end_of_string if @index >= @input.length
+  def supports_ssl?
+    @aba, @bab, @index = [], [], 0
+    parse_ssl
+
+    @aba.any? do |aba_group|
+      @bab.include?(aba_group[1] + aba_group[0] + aba_group[1])
+    end
+  end
+
+  def parse_tls
+    return :end_of_string if at_end?
     return :negative_abba if skip_brackets
 
     if abba_here?
       string = @input[@index..@index+3] 
       @index += 1
-      rest = parse
+      rest = parse_tls
 
       case rest
       when :end_of_string
@@ -38,7 +47,19 @@ class Address
     end
 
     @index += 1
-    parse
+    parse_tls
+  end
+
+  def parse_ssl
+    return if at_end?
+    read_bab_in_brackets
+
+    if aba_here?
+      @aba << @input[@index..@index+2]
+    end
+
+    @index += 1
+    parse_ssl
   end
 
   private
@@ -54,8 +75,40 @@ class Address
       end
     end
 
+    def read_bab_in_brackets
+      if @input[@index] == '['
+        while @input[@index] != ']'
+          @index += 1
+          if aba_here?
+            @bab << @input[@index..@index+2]
+          end
+        end
+      end
+    end
+
+    def at_end?
+      @index >= @input.length
+    end
+
     def abba_here?
       outer_matches? && inner_matches? && !same_characters?
+    end
+
+    def aba_here?
+      not_three_characters? && outer_two_match? && not_bracket? && !at_end?
+    end
+
+    def not_bracket?
+      !@input[@index..@index+2].include?('[') &&
+        !@input[@index..@index+2].include?(']')
+    end
+
+    def not_three_characters?
+      @input[@index..@index+2].chars.uniq.length != 1
+    end
+
+    def outer_two_match?
+      @input[@index] == @input[@index+2]
     end
 
     def same_characters?
@@ -86,6 +139,13 @@ TESTS
   abcd[bddb]xyyx
   aaaa[qwer]tyui
   ioxxoj[asdfgh]zxcvbn 
+EOF
+
+@part2_example = <<~EOF.strip.lines.map(&:strip)
+  aba[bab]xyz
+  xyx[xyx]xyx
+  aaa[kek]eke
+  zazbz[bzb]cdb
 EOF
 
 @input = <<~EOF.strip.lines.map(&:strip)
