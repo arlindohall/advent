@@ -23,6 +23,19 @@ class Message
     @expand ||= Message.new(parse.map(&:expand).join)
   end
 
+  def fully_expand
+    expanded = self
+    while expanded.contains_groups?
+      expanded = expanded.expand
+    end
+
+    expanded
+  end
+
+  def contains_groups?
+    parse.any? { |part| part.is_a?(Expansion) }
+  end
+
   def text
     @text
   end
@@ -90,6 +103,13 @@ end
   A(2x2)BCD(2x2)EFG
   (6x1)(1x3)A
   X(8x2)(3x3)ABCY
+END
+
+@example2 = <<-END.strip.lines.map(&:strip)
+  (3x3)XYZ
+  X(8x2)(3x3)ABCY
+  (27x12)(20x12)(13x14)(7x10)(1x12)A
+  (25x3)(3x3)ABC(2x3)XY(5x2)PQRSTX(18x9)(3x2)TWO(5x7)SEVEN
 END
 
 @input = <<~END.strip
