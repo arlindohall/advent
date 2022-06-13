@@ -6,11 +6,19 @@ class Part
   def expand
     text
   end
+
+  def size
+    text.size
+  end
 end
 
 class Expansion
   def expand
     times.times.map { part.text }.join
+  end
+
+  def size
+    Message.new(part.text).expanded_size * times
   end
 end
 
@@ -21,6 +29,10 @@ class Message
 
   def expand
     @expand ||= Message.new(parse.map(&:expand).join)
+  end
+
+  def expanded_size
+    parse.map(&:size).sum
   end
 
   def fully_expand
