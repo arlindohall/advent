@@ -88,30 +88,20 @@ class Configuration
     end
 
     def unique_state
-      [
-        elevator.floor,
-        generators_per_floor,
-        microchips_per_floor,
-        pairs,
-      ].flatten
-    end
-
-    def generators_per_floor
-      1.upto(4).map do |floor|
-        potent_generators(floor).size
-      end.to_a
-    end
-
-    def microchips_per_floor
-      1.upto(4).map do |floor|
-        microchips.filter{|m| m.floor == floor}.size
-      end.to_a
+      [pairs, elevator.floor]
     end
 
     def pairs
-      1.upto(4).map do |floor|
-        microchips.filter{|m| m.floor == floor}.size - unprotected_microchips(floor).size
-      end.to_a
+      all_items.group_by(&:type)
+        .values
+        .map do |items|
+          # Each pair's floor info only (pairs are interchangable)
+          items.map(&:floor).sort
+        end.sort
+    end
+
+    def all_items
+      generators + microchips
     end
 
     def update_winning(configuration)
