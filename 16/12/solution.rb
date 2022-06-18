@@ -3,8 +3,11 @@ Cpy = Struct.new(:source, :dest)
 Inc = Struct.new(:register)
 Dec = Struct.new(:register)
 Jnz = Struct.new(:source, :distance)
+
 Register = Struct.new(:name)
 Value = Struct.new(:itself)
+
+MachineState = Struct.new(:pc, :a, :b, :c, :d)
 
 class Computer
   def initialize(instructions)
@@ -20,34 +23,34 @@ class Computer
     while in_bounds?
       execute_current
     end
-    puts "pc=#{@pc} a=#{@a} b=#{@b} c=#{@c} d=#{@d}"
+    # Todo, everywhere machine state is referenced pass an object instead of all variables
+    puts "machine_state=#{@machine_state}"
   end
 
   def run_part2
     compile
     reset_registers
-    @c = 1
+    @machine_state.c = 1
     while in_bounds?
       execute_current
     end
-    puts "pc=#{@pc} a=#{@a} b=#{@b} c=#{@c} d=#{@d}"
+    puts "machine_state=#{@machine_state}"
   end
 
   def in_bounds?
-    @pc >= 0 && @pc < @instructions.size
+    @machine_state.pc >= 0 && @machine_state.pc < @instructions.size
   end
 
   def execute_current
-    # puts "pc=#{@pc} a=#{@a} b=#{@b} c=#{@c} d=#{@d}, current=#{current}"
-    @pc, @a, @b, @c, @d = current.execute(@pc, @a, @b, @c, @d)
+    @machine_state = current.execute(@machine_state)
   end
 
   def current
-    @compiled[@pc]
+    @compiled[@machine_state.pc]
   end
 
   def reset_registers
-    @pc, @a, @b, @c, @d = 0, 0, 0, 0, 0
+    @machine_state = MachineState.new(0, 0, 0, 0, 0)
   end
 
   def compile
@@ -95,11 +98,12 @@ class Computer
 end
 
 module DoJump
-  def do_jump(distance, pc, a, b, c, d)
-    if value(a, b, c, d) == 0
-      return pc+1, a, b, c, d
+  def do_jump(distance, machine_state)
+    pc, a, b, c, d = machine_state.values
+    if value(machine_state) == 0
+      return MachineState.new(pc+1, a, b, c, d)
     else
-      return pc+distance, a, b, c, d
+      return MachineState.new(pc+distance, a, b, c, d)
     end
   end
 end
@@ -107,7 +111,8 @@ end
 class Register
   include DoJump
 
-  def value(a, b, c, d)
+  def value(machine_state)
+    _, a, b, c, d = machine_state.values
     case name
     when 'a'
       a
@@ -124,59 +129,63 @@ end
 class Value
   include DoJump
 
-  def value(a, b, c, d)
+  def value(machine_state)
     itself
   end
 end
 
 class Cpy
-  def execute(pc, a, b, c, d)
+  def execute(machine_state)
+    pc, a, b, c, d = machine_state.values
     case dest
     when 'a'
-      return pc+1, source.value(a, b, c, d), b, c, d
+      return MachineState.new(pc+1, source.value(machine_state), b, c, d)
     when 'b'
-      return pc+1, a, source.value(a, b, c, d), c, d
+      return MachineState.new(pc+1, a, source.value(machine_state), c, d)
     when 'c'
-      return pc+1, a, b, source.value(a, b, c, d), d
+      return MachineState.new(pc+1, a, b, source.value(machine_state), d)
     when 'd'
-      return pc+1, a, b, c, source.value(a, b, c, d)
+      return MachineState.new(pc+1, a, b, c, source.value(machine_state))
     end
   end
 end
 
 class Inc
-  def execute(pc, a, b, c, d)
+  def execute(machine_state)
+    pc, a, b, c, d = machine_state.values
     case register
     when 'a'
-      return pc+1, a+1, b, c, d 
+      return MachineState.new(pc+1, a+1, b, c, d)
     when 'b'
-      return pc+1, a, b+1, c, d 
+      return MachineState.new(pc+1, a, b+1, c, d)
     when 'c'
-      return pc+1, a, b, c+1, d 
+      return MachineState.new(pc+1, a, b, c+1, d)
     when 'd'
-      return pc+1, a, b, c, d+1
+      return MachineState.new(pc+1, a, b, c, d+1)
     end
   end
 end
 
 class Dec
-  def execute(pc, a, b, c, d)
+  def execute(machine_state)
+    pc, a, b, c, d = machine_state.values
     case register
     when 'a'
-      return pc+1, a-1, b, c, d 
+      return MachineState.new(pc+1, a-1, b, c, d)
     when 'b'
-      return pc+1, a, b-1, c, d 
+      return MachineState.new(pc+1, a, b-1, c, d)
     when 'c'
-      return pc+1, a, b, c-1, d 
+      return MachineState.new(pc+1, a, b, c-1, d)
     when 'd'
-      return pc+1, a, b, c, d-1
+      return MachineState.new(pc+1, a, b, c, d-1)
     end
   end
 end
 
 class Jnz
-  def execute(pc, a, b, c, d)
-    source.do_jump(distance, pc, a, b, c, d)
+  def execute(machine_state)
+    pc, a, b, c, d = machine_state.values
+    source.do_jump(distance, machine_state)
   end
 end
 
