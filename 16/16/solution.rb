@@ -11,7 +11,6 @@ class Data
 
   def fill(size)
     until fulfilled?(size)
-      puts "Filling data desired=#{size}, size=#{@text.size}"
       @text = step
     end
 
