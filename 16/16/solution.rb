@@ -50,23 +50,27 @@ class Checksum
   end
 
   def sum
-    while @data.size.even?
-      puts "Stepping down size=#{@data.size}"
-      halve_data
+    result = (@data.size/group_size).times.to_a.map{nil}
+    index = 0
+    while index < @data.size
+      sum = @data[index...index+group_size].sum
+      result[index/group_size] = sum.even? ? 1 : 0
+      index += group_size
     end
-    @data.map(&:to_s).join
+
+    result.map(&:to_s).join
   end
 
-  def halve_data
-    @data = pairs.map{|pr| sum_one(pr)}
-  end
-
-  def pairs
-    @data.each_slice(2)
-  end
-
-  def sum_one(pair)
-    pair.first == pair.last ? 1 : 0
+  def group_size
+    @group_size ||= begin
+      size = @data.size
+      group_size = 1
+      while size.even?
+        size = size/2
+        group_size *= 2
+      end
+      group_size
+    end
   end
 end
 
@@ -80,4 +84,6 @@ But with this implementation using lists, it's maybe 30 seconds.
 That's because of the string cache limit, and because I used blocks/yield
 to reverse the arrays instead of map/reverse which would copy them.
 EXPLANATION
-@part2 = Data.new("11100010111110100").fill(35651584)
+def part2
+  Data.new("11100010111110100").fill(35651584).checksum
+end
