@@ -2,26 +2,38 @@
 class TrapFloor
 
   def initialize(first_row)
-    @rows = [Row.parse(first_row)]
+    @row = Row.parse(first_row)
   end
 
   def show
-    @rows.each do |row|
+    rows do |row|
       puts row.tiles.map(&:value).join
     end
   end
 
   def count_safe
-    @rows.map do |row|
-      row.tiles.filter{|t|t.safe?}.count
-    end.sum
+    @count ||= begin
+      safe_count = 0
+      rows do |row|
+        safe_count += row.tiles.map(&:safe?).filter(&:itself).count
+      end
+
+      safe_count
+    end
   end
 
   def build(size)
-    until @rows.size == size
-      @rows << @rows.last.next_row
-    end
+    @size = size
     self
+  end
+
+  def rows
+    row, row_count = @row, 0
+    until row_count == @size
+      yield(row)
+      row = row.next_row
+      row_count += 1
+    end
   end
 
   class Row
@@ -98,3 +110,4 @@ end
 @prelim_example = TrapFloor.new("..^^.").build(3)
 @example = TrapFloor.new(".^^.^.^^^^").build(10)
 @input = TrapFloor.new("...^^^^^..^...^...^^^^^^...^.^^^.^.^.^^.^^^.....^.^^^...^^^^^^.....^.^^...^^^^^...^.^^^.^^......^^^^").build(40)
+@part2 = TrapFloor.new("...^^^^^..^...^...^^^^^^...^.^^^.^.^.^^.^^^.....^.^^^...^^^^^^.....^.^^...^^^^^...^.^^^.^^......^^^^").build(400000)
