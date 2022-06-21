@@ -16,9 +16,6 @@ class Elephant
 
   def remove_next
     increment
-    if @removed % 10000 == 0
-      puts "Running through cycle: #{@size-@removed} left..."
-    end
     delete_one
     increment
   end
@@ -31,7 +28,6 @@ class Elephant
   end
 
   def delete_one
-    # puts "Removing elf #{@elves[@index]}"
     @removed += 1
     @elves[@index] = nil
   end

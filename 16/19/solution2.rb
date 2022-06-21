@@ -1,76 +1,50 @@
 
+<<-EXPLANATION
+I cheated a little bit to get this by reading reddit for tips. The key
+is that you can use two lists instead of one to represent the circle.
+Then you rotate through the players, removing the one on the end of the
+list, and keep in the middle with a balancing operation.
+EXPLANATION
 class Elephant
   def initialize(size)
-    @elves = 1.upto(size).to_a
-    @taker = 0
-    @index = 0
+    @left = 1.upto(size/2).to_a
+    @right = (size/2+1).upto(size).to_a
   end
 
   def play
-    @remaining = @elves.size
-    until @remaining == 1
-      remove_next
-      next_taker
+    while remaining != 1
+      if remaining % 10000 == 0
+        puts "Remaining=#{remaining}"
+      end
+      balance
+      remove
+      rotate
     end
 
-    find_next
-    current
+    (@right + @left).first
   end
 
-  def remove_next
-    @index = @taker
-    skip_half
-    delete_one
+  def remaining
+    @left.size + @right.size
   end
 
-  def skip_half
-    @searching = 0
-    while searching?
-      find_next
-      @searching += 1
+  def balance
+    until @right.size >= @left.size
+      @right.unshift(@left.pop)
     end
   end
 
-  def searching?
-    @searching < half
+  def remove
+    @right.shift
   end
 
-  def half
-    @remaining / 2
-  end
-
-  def find_next
-    increment
-    while current.nil?
-      increment
-    end
-  end
-
-  def increment
-    @index = (@index + 1) % @elves.size
-  end
-
-  def delete_one
-    @remaining -= 1
-    puts "Remaining elves: #{@remaining} deleted=#{@elves[@index]}"
-    @elves[@index] = nil
-  end
-
-  def current
-    @elves[@index]
-  end
-
-  def next_taker
-    increment_taker
-    while @elves[@taker].nil?
-      increment_taker
-    end
-  end
-
-  def increment_taker
-    @taker = (@taker + 1) % @elves.size
+  def rotate
+    @right.push(@left.shift)
+    @left.push(@right.shift)
   end
 end
 
 @example = Elephant.new(5)
 @input = Elephant.new(3018458)
+
+# 1509229 is too high
