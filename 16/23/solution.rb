@@ -59,11 +59,48 @@ class Computer
     puts "machine_state=#{@machine_state}"
   end
 
+  <<-explanation
+  This is taking a very long time to run, but the number in 'a' whenever 'b'
+  is decremented is always the number in 'a' last time 'b' was decremented
+  times 'b' after 'b' was decremented, so...
 
+  a         b
+  12        12 <-- starting value
+  12        11
+  ...
+  132       11 <-- 12 * 11
+  132       10
+  ...
+  1320      10 <-- 132 * 10
+  1320      9
+  ...
+  11880     9 <-- 1320 * 9
+  11880     8
+  ...
+
+  We can keep this going... it is just computing factorial. When we get to 2 and then
+  one, we'll have the factorial, so in this case 12!
+
+  When we ran with 7 as the input though, we got to 5040, or 7!, and then we put 96
+  into c and 79 into d, incrementing for each decrement, which is the same as
+  adding 96*79 or 7584.
+
+  7584 + 5040 = 12624, which is the answer
+
+  SO we are computing 12! + 7584 = 479009184
+
+  I got this answer when my machine had reached the state...
+  [pc=2, a=239500800, b=2, c=-16, d=0], current=#<struct Cpy source=#<struct Register name="a">, dest=#<struct Register name="d">>]
+  explanation
   def run_part2
     reset_registers
-    @machine_state.c = 1
+    @machine_state.a = 12
+    instructions_executed = 0
     while in_bounds?
+      if @machine_state.d == 0
+        p [@machine_state.values.take(5), current]
+      end
+      instructions_executed += 1
       execute_current
     end
     puts "machine_state=#{@machine_state}"
