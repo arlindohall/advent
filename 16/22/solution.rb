@@ -1,78 +1,61 @@
 
 class Grid
+  MAX_X = 36
+  MAX_Y = 24
+
   attr_reader :capacities
   def initialize(capacities)
     @capacities = capacities.map {|c| Node.parse(c)}
     @desired = @capacities.filter{|c| c.y == 0}.max_by(&:x)
   end
 
-  <<-explanation
-  Key realization: any data on a disk in a pair can fit on any other
+  <<-output
+  ....................................g
+  .....................................
+  .....................................
+  .####################################
+  .....................................
+  .....................................
+  ..................._.................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
+  .....................................
 
-  irb(main):004:0> @grid.viable_pairs.map(&:first).map(&:used).max
-  => 73
-  irb(main):005:0> @grid.viable_pairs.map(&:first).map(&:size).min
-  => 85
-  explanation
-  def find_path
-    @queue = [State.new(
-      [empty.x, empty.y],
-      [@desired.x, @desired.y],
-      0
-    )]
-    until @queue.empty?
-      next_state
-
-      if @visited.size % 500 == 0
-        puts "Getting next state: visited=#{@visited.size}, queue=#{@queue.size}, steps=#{@state&.steps}"
-      end
-
-      return @state if @state.solved?
-      swaps.each do |swap|
-        apply_move(swap)
-      end
+  ... just count the number of moves of the '_' symbol
+  to swap the g over to the start... I'm not sure what
+  the math would be to prove this...
+  output
+  def show
+    0.upto(MAX_Y) do |y|
+      puts (0.upto(MAX_X).map do |x|
+        get(x, y) == @desired ? 'g' :
+          get(x, y) == empty ? '_' :
+          slots.include?(get(x, y)) ? '.' : '#'
+      end.join)
     end
   end
 
-  def swaps
-    @state.neighbors.filter{ |n| swappable(n) }
-  end
-
-  def swappable(slot)
-    slots.include?(slot)
-  end
-
-  def next_state
-    @state = @queue.shift
-    visit(@state)
-  end
-
-  def apply_move(swap)
-    updated = @state.update(swap)
-    return if visited?(updated)
-
-    @queue << updated
+  def get(x, y)
+    @capacities.find{|c| c.x == x && c.y == y}
   end
 
   def slots
-    viable_pairs.map(&:first)
-  end
-
-  def visit(state)
-    @visited ||= []
-    @visited << state
-  end
-  
-  def visited?(state)
-    @visited.any? do |previous|
-      previous.empty_slot == state.empty_slot &&
-        previous.goal == state.goal
-    end
-  end
-
-  def slots
-    @slots ||= (viable_pairs.map(&:first) + [empty])
-      .map{|n| [n.x, n.y]}
+    @slots ||= viable_pairs.map(&:first)
   end
 
   def empty
@@ -85,58 +68,6 @@ class Grid
     end.filter do |node, destination|
       node.would_fit_on?(destination) && node.not_empty?
     end
-  end
-end
-
-class State
-  MAX_X = 36
-  MAX_Y = 24
-  attr_reader :empty_slot, :goal, :steps
-  def initialize(empty_slot, goal, steps)
-    @empty_slot = empty_slot
-    @goal = goal
-    @steps = steps
-  end
-
-  def solved?
-    @goal.first == 0 && @goal.last == 0
-  end
-
-  def update(swap)
-    if goal == swap
-      State.new(@goal, @empty_slot, @steps+1)
-    else
-      State.new(swap, @goal, @steps+1)
-    end
-  end
-
-  def neighbors
-    @neighbors ||= [
-      left,
-      right,
-      above,
-      below,
-    ].compact
-  end
-
-  def left
-    x, y = empty_slot
-    [x-1, y] if x >= 0
-  end
-
-  def right
-    x, y = empty_slot
-    [x+1, y] if x <= MAX_X
-  end
-
-  def above
-    x, y = empty_slot
-    [x, y+1] if y <= MAX_Y
-  end
-
-  def below
-    x, y = empty_slot
-    [x, y-1] if y >= 0
   end
 end
 
