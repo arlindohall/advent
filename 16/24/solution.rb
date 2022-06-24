@@ -1,6 +1,15 @@
 
 Path = Struct.new(:steps, :location)
 
+$print = :hint
+def show_map?
+  $print == :map
+end
+
+def show_hint?
+  $print == :hint
+end
+
 class Map
   attr_reader :steps
   def initialize(maze, steps_taken = 0)
@@ -46,12 +55,19 @@ class Map
     @paths = []
     i = 0
     until @searchers.empty? || found_all_numbers
+      if show_map?
+        print "\n" * 20
+        puts show
+        sleep 0.1
+      end
       step_each_searcher
     end
 
-    puts "Searching paths queue=#{@@queue.size}, steps=#{@steps} " \
-      "solved?=#{@@solved}, searchers=#{@searchers.size} " \
-      "found=#{numbers.count}"
+    if show_hint?
+      puts "Searching paths queue=#{@@queue.size}, steps=#{@steps} " \
+        "solved?=#{@@solved}, searchers=#{@searchers.size} " \
+        "found=#{numbers.count}"
+    end
     @paths
   end
 
