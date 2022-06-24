@@ -1,12 +1,7 @@
 
-Path = Struct.new(:steps, :location)
-
 class Map
-  attr_reader :steps
-  def initialize(maze, steps_taken = 0)
+  def initialize(maze)
     @maze = maze
-    @steps = steps_taken
-    @@home ||= zero
   end
 
   def self.from_str(text)
@@ -25,195 +20,123 @@ class Map
     }.join("\n")
   end
 
-  def solve
-    @@queue = [self]
-    @@solved = nil
-    until @@queue.empty?
-      search_from(@@queue.shuffle!.pop) # Depth first because we discard shorter paths
+  def min_distance
+    @min = nil
+    numbers.permutation do |trip|
+      # update_min(['0', trip, '0'].flatten)
+      update_min(['0', trip, '0'].flatten)
     end
-
-    @@solved
+    @min
   end
 
-  def search_from(starting_point)
-    starting_point.paths.each { |path|
-      starting_point.travel_path(path)
-    }
-  end
-
-  def paths
-    return @paths if @paths
-
-    @searchers = [zero]
-    @searching_for = numbers.count
-    @paths = []
-    i = 0
-    until @searchers.empty? || found_all_numbers
-      step_each_searcher
+  def update_min(trip)
+    if @min.nil?
+      @min = round_trip(trip)
+    elsif @min > round_trip(trip)
+      @min = round_trip(trip)
     end
-
-    puts "Searching paths queue=#{@@queue.size}, steps=#{@steps} " \
-      "solved?=#{@@solved}, searchers=#{@searchers.size} " \
-      "found=#{numbers.count}"
-    @paths
   end
 
-  def found_all_numbers
-    @searching_for == @paths.count
-  end
-
-  def step_each_searcher
-    @steps += 1
-    found_numbers.each { |number|
-      @paths << Path.new(@steps, number)
-    }
-    update_available_moves
+  def round_trip(trip)
+    sum = 0
+    for i in 0...trip.length-1
+      sum += distance(trip[i], trip[(i+1)])
+    end
+    sum
   end
 
   def numbers
-    @maze.each_index.flat_map { |y|
-      @maze[y].each_index.map { |x|
-        [x, y]
-      }.filter { |x, y|
-        @maze[y][x].to_i != 0
-      }
+    @maze.flatten.filter { |ch|
+      ch != '.' && ch != '#' && ch != '0'
     }
   end
 
-  def zero
+  def distance(x, y)
+    distances[x][y]
+  end
+
+  def distances
+    return @distances if @distances
+
+    @distances = {}
+    waypoints.each { |start|
+      @distances[start] = {}
+      (waypoints - [start]).each { |destination|
+        @distances[start][destination] = deep_clone.find(start, destination)
+      }
+    }
+
+    @distances
+  end
+
+  def waypoints
+    [numbers, '0'].flatten
+  end
+
+  def deep_clone
+    Map.new(@maze.map { |line|
+      line.clone
+    })
+  end
+
+  def find(x, y)
+    @searchers = [location(x)]
+    @distance = 0
+    @found = nil
+    until @found || @searchers.empty?
+      step_each_searcher(y)
+      puts show
+    end
+
+    if !@found
+      raise "Impossible: no path from #{x} to #{y}"
+    end
+
+    return @found
+  end
+
+  def location(ch)
     for y in @maze.each_index
       for x in @maze[y].each_index
-        return [x, y] if @maze[y][x] == '0'
+        return [x, y] if @maze[y][x] == ch
       end
     end
-    raise "Lost the zero... \n#{show}"
   end
 
-  def neighbors(spot)
-    x, y = spot
+  def step_each_searcher(desired)
+    # puts "Searching for #{desired} searchers: #{@searchers.size}"
+    paths = @searchers.flat_map { |searcher|
+      open_neighbors(searcher)
+    }
+
+    @searchers.each { |searcher|
+      x, y = searcher
+      if @maze[y][x] == desired
+        return @found = @distance
+      end
+
+      @maze[y][x] = '#'
+    }
+
+    @searchers = paths.uniq
+    @distance += 1
+  end
+
+  def open_neighbors(searcher)
+    neighbors(searcher).filter { |neighbor|
+      x, y = neighbor
+      @maze[y][x] != '#'
+    }
+  end
+
+  def neighbors(searcher)
+    x, y = searcher
     [
-      if x > 0                  then [x-1, y] end,
-      if x + 1 < @maze[y].size  then [x+1, y] end,
-      if y > 0                  then [x, y-1] end,
-      if y + 1 < @maze.size     then [x, y+1] end,
+      x > 0                     ? [x-1, y] : nil,
+      x < @maze[y].length-1     ? [x+1, y] : nil,
+      y > 0                     ? [x, y-1] : nil,
+      y < @maze.length-1        ? [x, y+1] : nil,
     ].compact
-  end
-
-  def update_available_moves
-    moves = @searchers.flat_map { |cursor|
-      neighbors(cursor).filter { |spot|
-        is_available?(spot)
-      }
-    }.uniq
-
-    @searchers.each { |cursor|
-      cross_out(cursor)
-    }
-
-    @searchers = moves
-  end
-
-  def found_numbers
-    fount = @searchers.flat_map { |cursor|
-      neighbors(cursor).filter { |spot|
-        is_number?(spot)
-      }
-    }
-  end
-
-  def cross_out(spot)
-    x, y = spot
-    @maze[y][x] = 'x'
-  end
-
-  def is_number?(spot)
-    x, y = spot
-    @maze[y][x].to_i != 0
-  end
-
-  def is_available?(spot)
-    x, y = spot
-    @maze[y][x] == '.'
-  end
-
-  def travel_path(path)
-    map = deep_clone(path)
-
-    if map.loser?(path)
-      return
-    end
-
-    if map.solved?(path)
-      @@solved = return_home(path)
-      return
-    end
-
-    @@queue << map
-  end
-
-  def deep_clone(path)
-    copy = Map.new(@maze.map { |row| row.clone }, path.steps)
-    copy.clean(path)
-  end
-
-  def clean(path)
-    for row, y in @maze.each_with_index
-      for spot, x in row.each_with_index
-        reset_spot(x, y, path)
-      end
-    end
-
-    self
-  end
-
-  def reset_spot(x, y, path)
-    if [x, y] == path.location
-      @maze[y][x] = '0'
-      return
-    end
-
-    case @maze[y][x]
-    when 'x', '0'
-      @maze[y][x] = '.'
-    end
-  end
-
-  def solved?(path)
-    numbers.empty? && better_than_solved?(path)
-  end
-
-  def better_than_solved?(path)
-    return true if @@solved.nil?
-    return_home(path) < @@solved
-  end
-
-  def loser?(path)
-    # Not a loser based on return home because we don't know the distance yet
-    @@solved && @@solved < path.steps
-  end
-
-  def return_home(path)
-    path.steps + distance(path)
-  end
-
-  def distance(path)
-    copy = deep_clone(path)
-    copy.set_home
-
-    if copy.numbers.size != 1
-      raise "Found #{copy.numbers.size} numbers in map that was supposed to be empty"
-    end
-
-    if copy.paths.size != 1
-      raise "Found #{copy.paths.size} paths on supposed winner"
-    end
-
-    copy.paths.first.steps
-  end
-
-  def set_home
-    x, y = @@home
-    @maze[y][x] = '1'
   end
 end
 
