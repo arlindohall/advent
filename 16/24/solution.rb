@@ -1,7 +1,7 @@
 
 Path = Struct.new(:steps, :location)
 
-$print = :hint
+$print = :map
 def show_map?
   $print == :map
 end
@@ -56,7 +56,7 @@ class Map
     i = 0
     until @searchers.empty? || found_all_numbers
       if show_map?
-        print "\n" * 20
+        print "\033[2J\033[H"
         puts show
         sleep 0.1
       end
