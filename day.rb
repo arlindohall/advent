@@ -21,8 +21,9 @@ class Root
 
   def this_year
     return Year.first if years.empty?
-    return largest_full.next_year if largest_full
-    return smallest_empty
+    return first_gap if true_gap?
+    return smallest_empty if smallest_empty
+    return largest_full.next_year if all_full?
 
     raise "Impossible situation: found some years," \
       "but none are either empty or full: years=#{years.map(&:path).map(&:to_s).sort_by(&:to_i)}"
@@ -40,6 +41,20 @@ class Root
     end.last
   end
 
+  def first_gap
+    untouched_years.first
+  end
+
+  def untouched_years
+    possible_years - years
+  end
+
+  def possible_years
+    years.first.number.upto(years.last.number).map do |number|
+      Year.new(@path.join(number.to_s))
+    end
+  end
+
   def next_year
     if years.empty?
       Year.first
@@ -52,6 +67,25 @@ class Root
     @path.children.filter do |child|
       is_year?(child.basename)
     end.map{|c| Year.new(c)}
+       .sort_by(&:number)
+  end
+
+  def number
+    @path.basename.to_s.to_i
+  end
+
+  def all_full?
+    untouched_years.empty?
+  end
+
+  def true_gap?
+    return false if first_gap.nil?
+    return true if smallest_empty.nil?
+
+    # A true gap is a gap between the first year and the smallest empty year
+    # If the smallest empty year is lower than the gap, though, then we start
+    # there
+    first_gap.number < smallest_empty.number
   end
 
   def is_year?(name)
@@ -60,8 +94,7 @@ class Root
 end
 
 class Year
-  # Coming back to do 2015, change this
-  FIRST_YEAR = 16
+  FIRST_YEAR = 15
 
   attr_reader :path
 
@@ -86,15 +119,25 @@ class Year
   end
 
   def next_day
-    this_day.next_day
+    first_unfinished_day
+  end
+
+  def first_unfinished_day
+    unfinished_days.sort_by(&:number).first
+  end
+
+  def unfinished_days
+    possible_days - days
+  end
+
+  def possible_days
+    1.upto(25).map do |day|
+      Day.new(@path.join(day.to_s))
+    end
   end
 
   def full?
     days.count == 25
-  end
-
-  def this_day
-    days.max_by(&:number)
   end
 
   def days
