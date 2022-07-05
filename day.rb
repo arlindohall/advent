@@ -8,11 +8,7 @@ class Root
   end
 
   def make_day
-    add_day.create_file
-  end
-
-  def add_day
-    this_year.add_day
+    this_year.next_day.create_file
   end
 
   def this_year
@@ -102,19 +98,15 @@ class Year
     @path.basename.to_s.to_i
   end
 
-  def add_day
-    if !@path.exist?
-      return Day.new(@path.join('1'))
-    end
-
-    next_day
-  end
-
   def next_year
     Year.new(@path.parent.join((number+1).to_s))
   end
 
   def next_day
+    if !@path.exist?
+      return Day.new(@path.join('1'))
+    end
+
     first_unfinished_day
   end
 
@@ -158,10 +150,6 @@ class Day
 
   def number
     @path.basename.to_s.to_i
-  end
-
-  def next_day
-    Day.new(@path.parent.join((number+1).to_s))
   end
 
   def create_file
