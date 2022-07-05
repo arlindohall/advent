@@ -116,7 +116,7 @@ class Year
 
   def unfinished_days
     possible_days.filter do |day|
-      !days.include?(day)
+      !exists?(day)
     end
   end
 
@@ -133,6 +133,12 @@ class Year
   def days
     return [] if !@path.exist?
     @path.children.map{|c| Day.new(c)}
+  end
+
+  def exists?(day)
+    days.any? do |d|
+      d.number == day.number
+    end
   end
 
   class << self
