@@ -159,6 +159,7 @@ class Day
   end
 
   def create_file
+    puts "Creating day #{@path}..."
     @path.mkpath
     @path.join('solution.rb').write('')
   end
