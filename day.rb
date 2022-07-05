@@ -38,7 +38,15 @@ class Root
   end
 
   def untouched_years
-    possible_years - years
+    possible_years.filter do |year|
+      !exists?(year)
+    end
+  end
+
+  def exists?(year)
+    years.any? do |y|
+      y.number == year.number
+    end
   end
 
   def possible_years
