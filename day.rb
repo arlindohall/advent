@@ -12,11 +12,7 @@ class Root
   end
 
   def add_day
-    if this_year.full?
-      next_year.add_day
-    else
-      this_year.add_day
-    end
+    this_year.add_day
   end
 
   def this_year
@@ -127,7 +123,9 @@ class Year
   end
 
   def unfinished_days
-    possible_days - days
+    possible_days.filter do |day|
+      !days.include?(day)
+    end
   end
 
   def possible_days
