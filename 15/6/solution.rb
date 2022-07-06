@@ -86,7 +86,11 @@ class LightGrid
     @grid = 0.upto(999).map {
       0.upto(999).map { 0 }
     }
-    @instructions = text.strip.lines.map(&:strip).map { |line|
+    @text = text
+  end
+
+  def compile
+    @instructions = @text.strip.lines.map(&:strip).map { |line|
       parse(line)
     }
   end
@@ -97,13 +101,13 @@ class LightGrid
 
   def parse(line)
     if line.split.first == "toggle"
-      return ->(is){is.toggle.new(coordinate(line, 1), coordinate(line, 3))}
+      return @instruction_set.toggle.new(coordinate(line, 1), coordinate(line, 3))
     elsif line.split.first != "turn"
       raise "Unknown instruction: #{line}"
     elsif line.split[1] == "on"
-      return ->(is){is.on.new(coordinate(line, 2), coordinate(line, 4))}
+      return @instruction_set.on.new(coordinate(line, 2), coordinate(line, 4))
     elsif line.split[1] == "off"
-      return ->(is){is.off.new(coordinate(line, 2), coordinate(line, 4))}
+      return @instruction_set.off.new(coordinate(line, 2), coordinate(line, 4))
     else
       raise "Unknown instruction: #{line}"
     end
@@ -115,17 +119,19 @@ class LightGrid
 
   def count_lit
     @instruction_set = Normal
+    compile
     run_instructions
   end
 
   def count_brightness
     @instruction_set = OldElvish
+    compile
     run_instructions
   end
 
   def run_instructions
     @instructions.each do |instruction|
-      instruction[@instruction_set].execute(@grid)
+      instruction.execute(@grid)
     end
 
     @grid.flatten.sum
