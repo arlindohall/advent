@@ -170,6 +170,7 @@ class Day
     puts "Creating day #{@path}..."
     @path.mkpath
     @path.join('solution.rb').write('')
+    system("open #{@path.join('solution.rb').to_s}")
   end
 end
 
