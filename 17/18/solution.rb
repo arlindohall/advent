@@ -2,6 +2,8 @@
 Instruction = Struct.new(:op, :target, :source)
 
 class Duet
+  attr_reader :queue, :sent
+
   def initialize(instructions)
     @instructions = instructions
   end
@@ -12,13 +14,17 @@ class Duet
     )
   end
 
+  def solve
+    [dup.execute, dup.duet]
+  end
+
   def execute
     @pc, @reg, @received, @sent = 0, {}, [], []
     until done?
       interpret
     end
 
-    [@received.first]
+    @received.first
   end
 
   def done?
@@ -55,6 +61,79 @@ class Duet
       if value_of(current.target) != 0
         @received << @sent.last
       end
+    end
+
+    @pc += 1
+  end
+
+  def dup
+    self.class.new(@instructions.dup)
+  end
+
+  def duet
+    @program0 = dup
+      .tap{|this| this.instance_eval{
+        @reg = {p: 0}
+      }}
+    @program1 = dup
+      .tap{|this| this.instance_eval{
+        @reg = {p: 1}
+      }}
+
+    @program0.pair(@program1)
+    @program1.pair(@program0)
+
+    until deadlock?
+      @program0.interpret_as_duet
+      @program1.interpret_as_duet
+    end
+
+    @program1.sent
+  end
+
+  def deadlock?
+    @program0.stuck? && @program1.stuck?
+  end
+
+  def stuck?
+    @partner.queue.empty? && current.op == :rcv
+  end
+
+  def pair(other)
+    @partner = other
+    @pc, @sent, @received, @queue = 0, 0, [], []
+  end
+
+  <<-docs
+  snd X sends the value of X to the other program. These values wait in a queue until that program is ready to receive them. Each program has its own message queue, so a program can never receive a message it sent.
+  rcv X receives the next value and stores it in register X. If no values are in the queue, the program waits for a value to be sent to it. Programs do not continue to the next instruction until they have received a value. Values are received in the order they are sent.
+  docs
+  def interpret_as_duet
+    case current.op
+    when :snd
+      @sent += 1
+      @queue << value_of(current.target)
+    when :rcv
+      if @partner.queue.any?
+        @reg[current.target[:register]] = @partner.queue.shift
+      else
+        # do not increment program counter as we didn't
+        # receive anything, wait for partner to execute
+        return
+      end
+    when :jgz
+      if value_of(current.target) > 0
+        @pc += value_of(current.source)
+        return # do not increment program counter again
+      end
+    when :set
+      set(current.target, value_of(current.source))
+    when :add
+      set(current.target, value_of(current.target) + value_of(current.source))
+    when :mul
+      set(current.target, value_of(current.target) * value_of(current.source))
+    when :mod
+      set(current.target, value_of(current.target) % value_of(current.source))
     end
 
     @pc += 1
@@ -115,6 +194,17 @@ rcv a
 jgz a -1
 set a 1
 jgz a -2
+inst
+
+@example2 = <<-inst
+snd 1
+snd 2
+snd p
+rcv a
+rcv b
+rcv c
+rcv d
+end
 inst
 
 @input = <<-inst
