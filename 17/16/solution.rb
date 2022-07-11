@@ -3,7 +3,6 @@ class Dance
   def initialize(moves, dancers)
     @moves = moves
     @dancers = dancers
-    @i = 0
   end
 
   def self.of(moves, size)
@@ -22,24 +21,31 @@ class Dance
   end
 
   def dance
-    # @moves.each{|move| perform(move)}
-    # @dancers.join
-    one_dance
+    @moves.each{|move| perform(move)}
+    @dancers.join
   end
 
   def full_dance
-    @i = 0
-    1_000_000_000.times { one_dance }
+    remainder.times{dance}
+    @dancers.join
   end
 
-  def one_dance
-    puts "Dancing #{@i}" if @i % 1_000_000 == 0
-    @i += 1
-    # a=0, b=1, c=2, d=3, e=4, f=5, g=6, h=7, i=8, j=9, k=10, l=11, m=12, n=13, o=14, p=15
-    # doeaimlbnpjchfkg
-    # [3, 14, 4, 0, 8, 12, 11, 1, 13, 15, 9, 2, 7, 5, 10, 6]
-    @dancers[0], @dancers[1], @dancers[2], @dancers[3], @dancers[4], @dancers[5], @dancers[6], @dancers[7], @dancers[8], @dancers[9], @dancers[10], @dancers[11], @dancers[12], @dancers[13], @dancers[14], @dancers[15] =
-      @dancers[3], @dancers[14], @dancers[4], @dancers[0], @dancers[8], @dancers[12], @dancers[11], @dancers[1], @dancers[13], @dancers[15], @dancers[9], @dancers[2], @dancers[7], @dancers[5], @dancers[10], @dancers[6]
+  def remainder
+    1_000_000_000 % dup.first_recurrance
+  end
+
+  def first_recurrance
+    dance
+
+    pristine = Dance.dancers(@dancers.size).freeze
+    @i = 1
+
+    until @dancers == pristine
+      @i += 1
+      print "Dancing #{i}" if @i % 1_000_000 == 0
+      dance
+    end
+    @i
   end
 
   def perform(move)
