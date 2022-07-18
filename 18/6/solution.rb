@@ -54,11 +54,10 @@ class ChronalCoordinates
   end
 
   def largest_finite
-    finite.map{|pt| area_around(pt)}.max
-  end
-
-  def finite
-    @points.filter{|pt| finite?(pt)}
+    on_board.group_by{|pt| closest(pt)}
+      .filter{|pt, _pts| !pt.nil?}
+      .filter{|pt, _pts| finite?(pt)}
+      .map{|_pt, cluster| cluster.size}.max
   end
 
   def finite?(point)
@@ -88,34 +87,26 @@ class ChronalCoordinates
     @points.filter{|pt| pt.x > point.x}
   end
 
-  def area_around(point)
-    p ['Finding area around', point]
-    queue = point.neighbors
-    closest_to = Set[]
-
-    while queue.any?
-      pt = queue.shift
-      if closest(pt) == point
-        closest_to << pt
-        neighbors = pt.neighbors.to_set - closest_to
-        neighbors.each{|n| queue << n}
-        queue.uniq!
-      end
-    end
-
-    closest_to.size
+  def closest(point)
+    cl = closest_group(point)
+    cl.first if cl.size == 1
   end
 
-  def closest(point)
+  def closest_group(point)
     closest_neighbors = @points.group_by{|pt| pt.distance(point)}
       .min_by{|dist, _pts| dist}
       .last
-    
-    if closest_neighbors.size != 1
-      nil
-    else
-      closest_neighbors.first
-    end
+  end
+
+  def on_board
+    xmin, xmax = @points.map(&:x).minmax
+    ymin, ymax = @points.map(&:y).minmax
+
+    xmin.upto(xmax).flat_map { |x|
+      ymin.upto(ymax).map { |y|
+        Point[x,y]
+      }
+    }
   end
 end
 
