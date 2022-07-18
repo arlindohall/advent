@@ -53,11 +53,32 @@ class ChronalCoordinates
     )
   end
 
+  def solve
+    [largest_finite, safe_cluster_size]
+  end
+
   def largest_finite
     on_board.group_by{|pt| closest(pt)}
       .filter{|pt, _pts| !pt.nil?}
       .filter{|pt, _pts| finite?(pt)}
       .map{|_pt, cluster| cluster.size}.max
+  end
+
+  def safe_cluster_size(size = 10000)
+    safe_points = 0
+    on_board.each { |pt|
+      safe_points += 1 if within_distance(pt, size)
+    }
+
+    safe_points
+  end
+
+  def within_distance(point, distance)
+    @points.each { |pt|
+      distance -= pt.distance(point)
+      return false if distance <= 0
+    }
+    return true
   end
 
   def finite?(point)
