@@ -40,6 +40,9 @@ class FuelGrid
     coordinates(1, 1, 298).max_by{ |x, y| square_power_level(x, y) }
   end
 
+  # The internet says there's an optimization where you calculate the sum of
+  # scores to the bottom and to the left of a value, then subtract...
+  # This runs somewhat fast enough for me so I don't really care
   def best_any_size
     # Arbitrarily assume it won't be bigger than 16x16 because the sum
     # of the cells approaches zero as N -> inf, turned out to be right
