@@ -9,9 +9,7 @@ class Cart
     self.direction = direction
     self.next_turn = next_turn
   end
-end
 
-class Cart
   def update_turn
     case next_turn
     when :clockwise
@@ -118,7 +116,7 @@ class Track
 
   def update_turn(cart)
     x, y = next_location(cart)
-    if @path.find { |pth| pth.x == x && pth.y == y }&.type == :intersection
+    if @path[[x,y]]&.type == :intersection
       cart.update_turn
     else
       cart.next_turn
@@ -127,7 +125,7 @@ class Track
 
   def delta_direction(cart)
     x, y = next_location(cart)
-    case @path.find { |pth| pth.x == x && pth.y == y }&.type
+    case @path[[x,y]]&.type
     when :vertical, :horizontal
       return cart.direction
     when :left_turn
@@ -160,8 +158,8 @@ class Track
   end
 
   def show
-    puts 0.upto(@path.map(&:y).max).map { |y|
-      0.upto(@path.map(&:x).max).map { |x|
+    puts 0.upto(@path.values.map(&:y).max).map { |y|
+      0.upto(@path.values.map(&:x).max).map { |x|
         if cart_at(x, y)
           cart_at(x, y)
         else
@@ -185,7 +183,7 @@ class Track
   end
 
   def path_at(x, y)
-    case @path.find { |path| path.x == x && path.y == y }&.type
+    case @path[[x,y]]&.type
     when :vertical
       ?|
     when :horizontal
@@ -239,7 +237,10 @@ class Track
         end
       end
 
-      Track.new(path, carts)
+      Track.new(
+        path.group_by { |pe| [pe.x, pe.y] }.map { |k,v| [k, v.first] }.to_h,
+        carts
+      )
     end
   end
 end
