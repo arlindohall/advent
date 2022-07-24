@@ -23,6 +23,10 @@ class Cart
     end
   end
 
+  def location
+    [x, y]
+  end
+
   def turn
     case [next_turn, direction]
     when [:clockwise, :up]
@@ -48,10 +52,11 @@ class Cart
 end
 
 class Track
-  attr_reader :carts, :path
-  def initialize(path, carts)
+  attr_reader :carts, :path, :mover
+  def initialize(path, carts, mover = [0, 0])
     @path = path
     @carts = carts
+    @mover = mover
   end
 
   def self.parse(text)
@@ -60,10 +65,8 @@ class Track
 
   def first_collision
     state = self
-    i = 0
-    until state.collision
+    until state.collisions.any?
       state = state.tick
-      puts i if (i += 1) % 10 == 0
     end
 
     state.collisions
@@ -77,10 +80,36 @@ class Track
   end
 
   def tick
-    Track.new(@path, @carts.map { |cart| next_position(cart) })
+    updated = next_position(@carts.find { |ct| is_mover?(ct) })
+    show ; p @mover ; puts 
+    Track.new(
+      @path,
+      @carts.map { |cart| is_mover?(cart) ? updated : cart },
+      next_mover(updated)
+    )
+  end
+
+  def is_mover?(cart)
+    cart.x == @mover.first && cart.y == @mover.last
+  end
+
+  def next_mover(cart)
+    x, y = cart.nil? ? [0, 0] : cart.location
+    until cart_at(x, y)
+      if x < @carts.map(&:x).max
+        x += 1
+      elsif y < @carts.map(&:y).max
+        x, y = 0, y + 1
+      else
+        x, y = 0, 0
+      end
+    end
+
+    [x,y]
   end
 
   def next_position(cart)
+    return nil if cart.nil?
     x, y = next_location(cart)
     Cart.new(x, y, delta_direction(cart), update_turn(cart))
   end
@@ -160,7 +189,9 @@ class Track
   def show
     puts 0.upto(@path.values.map(&:y).max).map { |y|
       0.upto(@path.values.map(&:x).max).map { |x|
-        if cart_at(x, y)
+        if collisions.include?([x, y])
+          'X'
+        elsif cart_at(x, y)
           cart_at(x, y)
         else
           path_at(x, y)
