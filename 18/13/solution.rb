@@ -68,7 +68,17 @@ class Track
       state = state.tick
     end
 
-    state.collisions
+    state.collisions.first
+  end
+
+  def last_cart
+    state = self
+
+    until state.carts.size == 1
+      state = state.tick_with_remove
+    end
+
+    state.carts.first.location
   end
 
   def collisions
@@ -76,6 +86,24 @@ class Track
       .group_by(&:itself)
       .filter { |location, carts| carts.size > 1 }
       .map(&:first)
+  end
+
+  def tick_with_remove
+    track = self
+
+    for mover in @carts.sort_by(&:x).sort_by(&:y)
+      track = Track.new(
+        @path,
+        track.carts.map { |cart| cart == mover ? next_position(cart) : cart }
+      )
+
+      if track.collisions.any?
+        collisions = track.collisions
+        track.carts.delete_if { |ct| collisions.include?([ct.x, ct.y]) }
+      end
+    end
+
+    track
   end
 
   def tick
@@ -261,4 +289,5 @@ class Track
 end
 
 @example = File.read('18/13/example.txt')
+@example2 = File.read('18/13/example2.txt')
 @input = File.read('18/13/input.txt')
