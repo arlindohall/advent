@@ -1,3 +1,4 @@
+$row = 0
 
 Player = Struct.new(:hp, :type)
 
@@ -132,15 +133,10 @@ class Map
 
     # puts self
     sort_players.dup.each { |player|
+      require 'pry'
+      binding.pry if $row > 850
       return self if done?
-      if has_not_died(player)
-        move = step(player)
-        # p [@round, player, move]
-        puts move
-        move.swap(@grid, @players) if move.should_move?
-        # todo: separate move from attack, maybe that will help find edge case?
-        move.attack(@grid, @players) if move.should_attack?
-      end
+      turn(player)
     }
 
     # puts self
@@ -151,13 +147,27 @@ class Map
     self # for chaining
   end
 
+  def turn(player)
+    return unless has_not_died(player)
+
+    move = step(player)
+    move.swap(@grid, @players) if move.should_move?
+
+    attack = attack(move.attack_point)
+    attack.drain(@grid, @players) if attack.should_attack?
+  end
+
   def has_not_died(player)
     x, y = player
     @grid[y][x].player?
   end
 
+  def attack(player_location)
+    Attacker.new(@grid, sort_players, player_location).find_attack
+  end
+
   def step(player_location)
-    Searcher.new(@grid, sort_players, player_location).find_best_move
+    Mover.new(@grid, sort_players, player_location).find_best_move
   end
 
   def inspect
@@ -192,62 +202,9 @@ end
 
 class Searcher
   def initialize(grid, players, starting_point)
-    @grid = grid.map { |row| row.dup }
+    @grid = grid
     @players = players
     @starting_point = starting_point
-  end
-
-  def find_best_move
-    f = _find_best_move
-    # puts "=========="
-    # puts Map.new(@grid)
-    # puts "=========="
-    return f
-  end
-
-  # Return unfound if no move available, or immediately when path
-  # found, but sort by reading order
-  def _find_best_move
-    return Move.attack(@starting_point, enemy(@starting_point)) if enemy(@starting_point)
-
-    @distance = 0
-    @moves = targets.flat_map { |target| movable_neighbors(target) }
-
-    until @moves.empty?
-      return found_move if found_move
-      set_points_to_distance
-      update_next_moves
-    end
-
-    return found_move if found_move
-
-    Move.no_moves(@starting_point)
-  end
-
-  def found_move(final_pass = false)
-    # Don't need to check if there's all paths because we only want the shortest
-    # return nil unless final_pass || neighbors(@starting_point).map { |x,y| @grid[y][x] }.map{ |pt| !pt.path? }.all?
-    mv = shortest_finishing_move
-
-    return nil unless mv
-    # raise "Expected to have found visit but didn't" unless mv
-
-    x, y = mv
-    if @grid[y][x].visit? && @grid[y][x].distance == 0
-      raise "Tried to attack from #{@grid[y][x].inspect} but found no enemies" if enemy(mv).nil?
-      return Move.attack_and_move(@starting_point, mv, enemy(mv))
-    end
-
-    Move.move(@starting_point, mv)
-  end
-
-  def shortest_finishing_move
-    ngbs = neighbors(@starting_point).filter { |x,y| @grid[y][x].visit? }
-
-    return nil if ngbs.empty?
-
-    dist = ngbs.map { |x,y| @grid[y][x].distance }.min
-    ngbs.filter { |x,y| @grid[y][x].distance == dist }.first
   end
 
   def targets
@@ -257,29 +214,18 @@ class Searcher
     @players.filter { |x,y| @grid[y][x].type != type }
   end
 
-  def set_points_to_distance
-    @moves.each { |x,y|
-      @grid[y][x] = Visit.new(@distance)
-    }
+  def enemy
+    return @enemy if @enemy
+
+    targets = attackable_neighbors.group_by { |x,y| @grid[y][x].hp }
+    @enemy = targets[targets.keys.min]&.min_by { |x,y| y * 10000 + x}
   end
 
-  def update_next_moves
-    @distance += 1
-    # Absolutely critical to `uniq` here because you'll get nearly a million
-    # nodes on the search path otherwise
-    @moves = @moves.flat_map { |point| movable_neighbors(point) }.uniq
-  end
-
-  def enemy(point)
-    targets = attackable_neighbors(point).group_by { |x,y| @grid[y][x].hp }
-    targets[targets.keys.min]&.min_by { |x,y| y * 10000 + x}
-  end
-
-  def attackable_neighbors(point)
+  def attackable_neighbors
     x, y = @starting_point
     raise "Tried to find enemies of non-player #{@starting_point}: #{@grid[y][x]}" unless @grid[y][x].player?
 
-    neighbors(point).filter { |nx,ny|
+    neighbors(@starting_point).filter { |nx,ny|
       @grid[ny][nx].player? && @grid[ny][nx].type != @grid[y][x].type
     }
   end
@@ -303,33 +249,135 @@ class Searcher
   end
 end
 
+class Attacker < Searcher
+  def initialize(grid, players, starting_point)
+    # Do not need to clone grid because we don't mutate it
+    super(grid, players, starting_point)
+  end
+
+  def find_attack
+    Attack.new(@starting_point, enemy)
+  end
+end
+
+class Mover < Searcher
+  def initialize(grid, players, starting_point)
+    super(grid.map { |row| row.dup }, players, starting_point)
+  end
+
+  def find_best_move
+    f = _find_best_move
+    # puts "=========="
+    # puts Map.new(@grid)
+    # puts "=========="
+    return f
+  end
+
+  # Return unfound if no move available, or immediately when path
+  # found, but sort by reading order
+  def _find_best_move
+    return Move.no_moves(@starting_point) if Attacker.new(@grid, @players, @starting_point).find_attack.should_attack?
+    @distance = 0
+    @moves = targets.flat_map { |target| movable_neighbors(target) }
+
+    until @moves.empty?
+      return found_move if found_move
+      set_points_to_distance
+      update_next_moves
+    end
+
+    return found_move if found_move
+
+    Move.no_moves(@starting_point)
+  end
+
+  def found_move(final_pass = false)
+    # Don't need to check if there's all paths because we only want the shortest
+    # return nil unless final_pass || neighbors(@starting_point).map { |x,y| @grid[y][x] }.map{ |pt| !pt.path? }.all?
+    mv = shortest_finishing_move
+    return nil unless mv
+
+    Move.move(@starting_point, mv)
+  end
+
+  def shortest_finishing_move
+    ngbs = neighbors(@starting_point).filter { |x,y| @grid[y][x].visit? }
+
+    return nil if ngbs.empty?
+
+    dist = ngbs.map { |x,y| @grid[y][x].distance }.min
+    ngbs.filter { |x,y| @grid[y][x].distance == dist }.first # bug here
+  end
+
+  def set_points_to_distance
+    @moves.each { |x,y|
+      @grid[y][x] = Visit.new(@distance)
+    }
+  end
+
+  def update_next_moves
+    @distance += 1
+    # Absolutely critical to `uniq` here because you'll get nearly a million
+    # nodes on the search path otherwise
+    @moves = @moves.flat_map { |point| movable_neighbors(point) }.uniq
+  end
+end
+
+class Attack
+  def initialize(player, target)
+    @player = player
+    @target = target
+  end
+
+  class << self
+    def no_targets(player)
+      new(player, nil)
+    end
+
+    def attack(player, target)
+      new(player, target)
+    end
+  end
+
+  def drain(grid, players)
+    $row += 1
+    puts self.to_s
+    x, y = @target
+    grid[y][x].hp -= 3
+
+    return if grid[y][x].hp > 0
+
+    grid[y][x] = Path.new
+  end
+
+  def to_s
+    " (attack #{@target})"
+  end
+
+  def should_attack?
+    !@target.nil?
+  end
+end
+
 class Move
-  def initialize(type, player, destination = nil, attack_target = nil)
-    @type = type
+  def initialize(player, destination)
     @player = player 
     @destination = destination
-    @attack_target = attack_target
   end
 
   class << self
     def no_moves(starting_point)
-      new(:no_moves, starting_point)
+      new(starting_point, nil)
     end
 
     def move(player, destination)
-      new(:move, player, destination)
-    end
-
-    def attack(starting_point, target)
-      new(:attack, starting_point, nil, target)
-    end
-
-    def attack_and_move(player, destination, target)
-      new(:attack_and_move, player, destination, target)
+      new(player, destination)
     end
   end
 
   def swap(grid, players)
+    $row += 1
+    puts self.to_s
     px, py = @player
     dx, dy = @destination
 
@@ -339,37 +387,16 @@ class Move
     grid[dy][dx], grid[py][px] = grid[py][px], grid[dy][dx]
   end
 
-  def attack(grid, players)
-    x, y = @attack_target
-    grid[y][x].hp -= 3
-
-    return if grid[y][x].hp > 0
-
-    grid[y][x] = Path.new
+  def attack_point
+    @destination ? @destination : @player
   end
 
   def to_s
-    move_str.ljust(20) + attack_str
-  end
-
-  def move_str
     @destination ? "#{@player.to_s.ljust(10)} -> #{@destination}" : "#{@player.to_s.ljust(10)} -> no move"
   end
 
-  def attack_str
-    should_attack? ? "\n (attack #{@attack_target})" : ""
-  end
-
-  def no_targets?
-    @type == :no_targets
-  end
-
-  def should_attack?
-    [:attack, :attack_and_move].include?(@type)
-  end
-
   def should_move?
-    [:move, :attack_and_move].include?(@type)
+    !@destination.nil?
   end
 end
 
