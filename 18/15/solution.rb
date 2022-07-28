@@ -1,4 +1,3 @@
-$row = 0
 
 Player = Struct.new(:hp, :type)
 
@@ -133,8 +132,6 @@ class Map
 
     # puts self
     sort_players.dup.each { |player|
-      require 'pry'
-      binding.pry if $row > 850
       return self if done?
       turn(player)
     }
@@ -340,7 +337,6 @@ class Attack
   end
 
   def drain(grid, players)
-    $row += 1
     puts self.to_s
     x, y = @target
     grid[y][x].hp -= 3
@@ -376,7 +372,6 @@ class Move
   end
 
   def swap(grid, players)
-    $row += 1
     puts self.to_s
     px, py = @player
     dx, dy = @destination
