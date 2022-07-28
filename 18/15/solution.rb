@@ -118,8 +118,8 @@ class Map
       round
     end
 
-    puts self
-    p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
+    # puts self
+    # p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
     @round * players_themselves.map(&:hp).sum
   end
 
@@ -136,15 +136,17 @@ class Map
       if has_not_died(player)
         move = step(player)
         # p [@round, player, move]
+        puts move
         move.swap(@grid, @players) if move.should_move?
+        # todo: separate move from attack, maybe that will help find edge case?
         move.attack(@grid, @players) if move.should_attack?
       end
     }
 
-    puts self
+    # puts self
 
     @round += 1
-    p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
+    # p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
     # p [@round, sort_players.length, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
     self # for chaining
   end
@@ -344,6 +346,18 @@ class Move
     return if grid[y][x].hp > 0
 
     grid[y][x] = Path.new
+  end
+
+  def to_s
+    move_str.ljust(20) + attack_str
+  end
+
+  def move_str
+    @destination ? "#{@player.to_s.ljust(10)} -> #{@destination}" : "#{@player.to_s.ljust(10)} -> no move"
+  end
+
+  def attack_str
+    should_attack? ? "\n (attack #{@attack_target})" : ""
   end
 
   def no_targets?
