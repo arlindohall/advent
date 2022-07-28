@@ -141,7 +141,7 @@ class Map
       end
     }
 
-    p self
+    puts self
 
     @round += 1
     p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
@@ -492,11 +492,12 @@ map
 ################################
 map
 
+def part1 ; Map.parse(@input).part1 ; end
 def profile_part_1
   require 'ruby-prof'
   begin
     RubyProf.start
-    Map.parse(@input).part1
+    part1
   ensure
     result = RubyProf.stop
     printer = RubyProf::GraphPrinter.new(result)
