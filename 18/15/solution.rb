@@ -132,6 +132,7 @@ class Map
 
     # puts self
     sort_players.dup.each { |player|
+      return self if done?
       if has_not_died(player)
         move = step(player)
         # p [@round, player, move]
@@ -140,7 +141,7 @@ class Map
       end
     }
 
-    return self if done?
+    p self
 
     @round += 1
     p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
@@ -504,9 +505,21 @@ def profile_part_1
 end
 
 def all_examples
-  1.upto(6).map { |i| self.instance_variable_get("@example#{i}") }
+  results = 1.upto(6).map { |i| self.instance_variable_get("@example#{i}") }
     .map { |g| Map.parse(g) }
     .map(&:part1)
+  
+  expected = [
+    27730,
+    36334,
+    39514,
+    27755,
+    28944,
+    18740,
+  ]
+
+  raise "Expected all equal #{results.zip(expected)}" unless
+    results.zip(expected).all? { |r, e| r == e }
 end
 
 # guess: 182715 <- too low
