@@ -388,12 +388,11 @@ class Mover < Searcher
   end
 
   def shortest_paths
-    paths = @moves.filter { |path|
+    @moves.filter { |path|
       neighbors(path.terminal).any? { |x,y|
         @grid[y][x].player? && @grid[y][x].type != type
       }
     }
-    paths.group_by(&:distance)[paths.map(&:distance).min] || []
   end
 
   def type
