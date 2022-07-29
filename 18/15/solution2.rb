@@ -10,6 +10,22 @@ Player = Struct.new(:hp, :type)
 class Player
   DEFAULT_HP = 200
 
+  @@elf_damage = 3
+  def self.set_elf_damage(damage)
+    @@elf_damage = damage
+  end
+
+  def take_damage
+    case self.type
+    when :elf
+      self.hp -= 3
+    when :goblin
+      self.hp -= @@elf_damage
+    else
+      raise "Unknown player type: #{type}"
+    end
+  end
+
   def to_s
     type == :elf ? 'E' : 'G'
   end
@@ -145,7 +161,63 @@ class Map
       round
     end
 
-    @round * players_themselves.map(&:hp).sum
+    @round * hp_left
+  end
+
+  def part2
+    @elf_count = count_elves
+    @elf_damage = 4
+
+    until elves_win?
+      Player.set_elf_damage(@elf_damage)
+      @round, @hp_left = simulate_whole_battle
+      @elf_damage += 1
+    end
+
+    @round * @hp_left
+  end
+
+  def elves_win?
+    @round
+  end
+
+  def simulate_whole_battle
+    puts "Simulating with elf damage: #{@elf_damage}"
+    map = deep_clone
+
+    until map.done?
+      map.round
+      if map.count_elves < @elf_count
+        puts map.inspect
+        return [false, 0]
+      end
+    end
+
+    puts map.inspect
+    [map.rounds, map.hp_left]
+  end
+
+  def hp_left
+    players_themselves.map(&:hp).sum
+  end
+
+  def deep_clone
+    Map.new(
+      @grid.map { |row|
+        row.map { |cell|
+          case cell
+          when Player
+            cell.dup
+          else
+            cell
+          end
+        }
+      }
+    )
+  end
+
+  def count_elves
+    sort_players.filter { |x,y| @grid[y][x].type == :elf }.count
   end
 
   def done?
@@ -161,7 +233,6 @@ class Map
     }
 
     @round += 1
-    # puts self
     self # for chaining
   end
 
@@ -280,19 +351,12 @@ end
 
 class Mover < Searcher
   def initialize(grid, players, starting_point)
-    super(grid.map { |row| row.dup }, players, starting_point)
+    super(grid.map(&:dup), players, starting_point)
   end
 
   # Return unfound if no move available, or immediately when path
   # found, but sort by reading order
   def find_best_move
-    f = _find_best_move
-    # For debugging steps
-    # puts Map.new(@grid)
-    return f
-  end
-
-  def _find_best_move
     return Move.no_moves(@starting_point) if Attacker.new(@grid, @players, @starting_point).find_attack.should_attack?
 
     @moves = [Path.new([@starting_point])]
@@ -375,9 +439,8 @@ class Attack
   end
 
   def drain(grid, players)
-    puts self.to_s
     x, y = @target
-    grid[y][x].hp -= 3
+    grid[y][x].take_damage
 
     return if grid[y][x].hp > 0
 
@@ -410,7 +473,6 @@ class Move
   end
 
   def swap(grid, players)
-    puts self.to_s
     px, py = @player
     dx, dy = @destination
 
@@ -433,42 +495,6 @@ class Move
   end
 end
 
-@example_search = <<map.strip
-#######
-#E..G.#
-#...#.#
-#.G.#G#
-#######
-map
-
-@example_step = <<map.strip
-#######
-#.E...#
-#.....#
-#...G.#
-#######
-map
-
-@example_movement = <<map.strip
-#########
-#G..G..G#
-#.......#
-#.......#
-#G..E..G#
-#.......#
-#.......#
-#G..G..G#
-#########
-map
-
-@example_attack = [
-  [Player.new(9, :goblin),  OpenSpace.new, OpenSpace.new,          OpenSpace.new,          OpenSpace.new],
-  [OpenSpace.new,           OpenSpace.new, Player.new(4, :goblin), OpenSpace.new,          OpenSpace.new],
-  [OpenSpace.new,           OpenSpace.new, Player.new(100, :elf),  Player.new(2, :goblin), OpenSpace.new],
-  [OpenSpace.new,           OpenSpace.new, Player.new(2, :goblin), OpenSpace.new,          OpenSpace.new],
-  [OpenSpace.new,           OpenSpace.new, OpenSpace.new,          Player.new(1, :goblin), OpenSpace.new],
-]
-
 @example1 = <<map.strip
 #######
 #.G...#
@@ -481,16 +507,6 @@ map
 
 @example2 = <<map.strip
 #######
-#G..#E#
-#E#E.E#
-#G.##.#
-#...#E#
-#...E.#
-#######
-map
-
-@example3 = <<map.strip
-#######
 #E..EG#
 #.#G.E#
 #E.##E#
@@ -499,17 +515,17 @@ map
 #######
 map
 
-@example4 = <<map.strip
+@example3 = <<map.strip
 #######
 #E.G#.#
 #.#G..#
 #G.#.G#
 #G..#.#
 #...E.#
-####### 
+#######
 map
 
-@example5 = <<map.strip
+@example4 = <<map.strip
 #######
 #.E...#
 #.#..G#
@@ -519,7 +535,7 @@ map
 #######
 map
 
-@example6 = <<map.strip
+@example5 = <<map.strip
 #########
 #G......#
 #.E.#...#
@@ -566,31 +582,17 @@ map
 ################################
 map
 
-def part1 ; Map.parse(@input).part1 ; end
-def profile_part_1
-  require 'ruby-prof'
-  begin
-    RubyProf.start
-    part1
-  ensure
-    result = RubyProf.stop
-    printer = RubyProf::GraphPrinter.new(result)
-    printer.print(STDOUT)
-  end
-end
-
 def all_examples
-  results = 1.upto(6).map { |i| self.instance_variable_get("@example#{i}") }
+  results = 1.upto(5).map { |i| self.instance_variable_get("@example#{i}") }
     .map { |g| Map.parse(g) }
-    .map(&:part1)
+    .map(&:part2)
   
   expected = [
-    27730,
-    36334,
-    39514,
-    27755,
-    28944,
-    18740,
+    4988,
+    31284,
+    3478,
+    6474,
+    1140,
   ]
 
   raise "Expected all equal #{results.zip(expected)}" unless
