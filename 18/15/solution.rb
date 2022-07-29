@@ -1,4 +1,10 @@
 
+LARGE_NUMBER = 100_000_000
+def reading_order(point)
+  x, y = point
+  # Always sort by y first, then x
+  LARGE_NUMBER * y + x
+end
 Player = Struct.new(:hp, :type)
 
 class Player
@@ -31,7 +37,7 @@ class Player
   end
 end
 
-class Path
+class OpenSpace
   def to_s
     '.'
   end
@@ -67,14 +73,35 @@ class Obstruction
   end
 end
 
-class Visit
-  attr_reader :distance
-  def initialize(distance)
-    @distance = distance
+class Path
+  def initialize(route)
+    @route = route
+  end
+
+  def then_visit(point)
+    self.class.new(@route + [point])
+  end
+
+  def step
+    # The terminal is always the starting point, or no move
+    # so the step will be the second entry
+    @route[1]
+  end
+
+  def starting_point
+    @route.first
+  end
+
+  def terminal
+    @route.last
+  end
+
+  def distance
+    @route.size
   end
 
   def to_s
-    @distance.to_s
+    @route.count.to_s
   end
 
   def visit?
@@ -118,8 +145,6 @@ class Map
       round
     end
 
-    # puts self
-    # p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
     @round * players_themselves.map(&:hp).sum
   end
 
@@ -130,17 +155,13 @@ class Map
   def round
     @round ||= 0
 
-    # puts self
     sort_players.dup.each { |player|
       return self if done?
       turn(player)
     }
 
-    # puts self
-
     @round += 1
-    # p [@round, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
-    # p [@round, sort_players.length, players_themselves.map(&:hp).sum, players_themselves.map(&:hp)]
+    # puts self
     self # for chaining
   end
 
@@ -183,7 +204,7 @@ class Map
           when ?#
             Obstruction.new
           when ?.
-            Path.new
+            OpenSpace.new
           when ?G
             Player.goblin
           when ?E
@@ -215,7 +236,7 @@ class Searcher
     return @enemy if @enemy
 
     targets = attackable_neighbors.group_by { |x,y| @grid[y][x].hp }
-    @enemy = targets[targets.keys.min]&.min_by { |x,y| y * 10000 + x}
+    @enemy = targets[targets.keys.min]&.min_by { |point| reading_order(point) }
   end
 
   def attackable_neighbors
@@ -262,25 +283,24 @@ class Mover < Searcher
     super(grid.map { |row| row.dup }, players, starting_point)
   end
 
+  # Return unfound if no move available, or immediately when path
+  # found, but sort by reading order
   def find_best_move
     f = _find_best_move
-    # puts "=========="
+    # For debugging steps
     # puts Map.new(@grid)
-    # puts "=========="
     return f
   end
 
-  # Return unfound if no move available, or immediately when path
-  # found, but sort by reading order
   def _find_best_move
     return Move.no_moves(@starting_point) if Attacker.new(@grid, @players, @starting_point).find_attack.should_attack?
-    @distance = 0
-    @moves = targets.flat_map { |target| movable_neighbors(target) }
+
+    @moves = [Path.new([@starting_point])]
 
     until @moves.empty?
-      return found_move if found_move
-      set_points_to_distance
       update_next_moves
+      set_points_to_path
+      return found_move if found_move
     end
 
     return found_move if found_move
@@ -288,9 +308,7 @@ class Mover < Searcher
     Move.no_moves(@starting_point)
   end
 
-  def found_move(final_pass = false)
-    # Don't need to check if there's all paths because we only want the shortest
-    # return nil unless final_pass || neighbors(@starting_point).map { |x,y| @grid[y][x] }.map{ |pt| !pt.path? }.all?
+  def found_move
     mv = shortest_finishing_move
     return nil unless mv
 
@@ -298,25 +316,45 @@ class Mover < Searcher
   end
 
   def shortest_finishing_move
-    ngbs = neighbors(@starting_point).filter { |x,y| @grid[y][x].visit? }
-
-    return nil if ngbs.empty?
-
-    dist = ngbs.map { |x,y| @grid[y][x].distance }.min
-    ngbs.filter { |x,y| @grid[y][x].distance == dist }.first # bug here
+    shortest_paths.filter { |path| path.step } # already know it's at least one step
+      .sort_by { |path| reading_order(path.step) } # sort by first step first so it's sorted underneath terminal
+      .sort_by { |path| reading_order(path.terminal) } # sort by terminal last so they're at top
+      .first
+      &.step
   end
 
-  def set_points_to_distance
-    @moves.each { |x,y|
-      @grid[y][x] = Visit.new(@distance)
+  def shortest_paths
+    paths = @moves.filter { |path|
+      neighbors(path.terminal).any? { |x,y|
+        @grid[y][x].player? && @grid[y][x].type != type
+      }
+    }
+    paths.group_by(&:distance)[paths.map(&:distance).min] || []
+  end
+
+  def type
+    x, y = @starting_point
+    @grid[y][x].type
+  end
+
+  def set_points_to_path
+    @moves.each { |pth|
+      x, y = pth.terminal
+      @grid[y][x] = pth
     }
   end
 
   def update_next_moves
-    @distance += 1
-    # Absolutely critical to `uniq` here because you'll get nearly a million
-    # nodes on the search path otherwise
-    @moves = @moves.flat_map { |point| movable_neighbors(point) }.uniq
+    @moves = @moves.flat_map { |path| possible_visits_from(path) }
+      .group_by { |path| path.terminal }
+      .values
+      .map { |paths_to_point| paths_to_point.min_by { |pth| reading_order(pth.starting_point) } }
+  end
+
+  def possible_visits_from(path)
+    neighbors(path.terminal)
+      .filter { |x,y| @grid[y][x].path? }
+      .map { |ngb| path.then_visit(ngb) }
   end
 end
 
@@ -343,7 +381,7 @@ class Attack
 
     return if grid[y][x].hp > 0
 
-    grid[y][x] = Path.new
+    grid[y][x] = OpenSpace.new
   end
 
   def to_s
@@ -424,11 +462,11 @@ map
 map
 
 @example_attack = [
-  [Player.new(9, :goblin),  Path.new, Path.new,               Path.new,               Path.new],
-  [Path.new,                Path.new, Player.new(4, :goblin), Path.new,               Path.new],
-  [Path.new,                Path.new, Player.new(100, :elf),  Player.new(2, :goblin), Path.new],
-  [Path.new,                Path.new, Player.new(2, :goblin), Path.new,               Path.new],
-  [Path.new,                Path.new, Path.new,               Player.new(1, :goblin), Path.new],
+  [Player.new(9, :goblin),  OpenSpace.new, OpenSpace.new,          OpenSpace.new,          OpenSpace.new],
+  [OpenSpace.new,           OpenSpace.new, Player.new(4, :goblin), OpenSpace.new,          OpenSpace.new],
+  [OpenSpace.new,           OpenSpace.new, Player.new(100, :elf),  Player.new(2, :goblin), OpenSpace.new],
+  [OpenSpace.new,           OpenSpace.new, Player.new(2, :goblin), OpenSpace.new,          OpenSpace.new],
+  [OpenSpace.new,           OpenSpace.new, OpenSpace.new,          Player.new(1, :goblin), OpenSpace.new],
 ]
 
 @example1 = <<map.strip
