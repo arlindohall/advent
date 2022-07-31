@@ -20,14 +20,6 @@ class Vein
     ?#
   end
 
-  def spilling?
-    false
-  end
-
-  def falling?
-    false
-  end
-
   def water?
     false
   end
@@ -47,14 +39,6 @@ class Water
     when :source
       ?+
     end
-  end
-
-  def spilling?
-    flow == :surface
-  end
-
-  def falling?
-    flow == :fall
   end
 
   def water?
@@ -80,9 +64,8 @@ class Vein
 end
 
 class Ground
-  def initialize(sections, x_range, y_range)
+  def initialize(sections, y_range)
     @sections = sections
-    @x_range = x_range
     @y_range = y_range
   end
 
@@ -109,12 +92,12 @@ class Ground
 
     sections[[500,0]] = Water.new(500, 0, :source)
 
-    new(sections, sections.values.map(&:x).minmax, sections.values.map(&:y).minmax)
+    new(sections, sections.values.map(&:y).minmax)
   end
 
   def to_s
-    xmn, xmx = @x_range
     ymn, ymx = @y_range
+    xmn, xmx = @sections.keys.map(&:first).minmax
 
     ymn.upto(ymx).map { |y|
       xmn.upto(xmx).map { |x|
@@ -127,16 +110,13 @@ class Ground
     "Ground:____________\n#{to_s}\n____________"
   end
 
-  # 535 is too low... not sure what I've done wrong
+  # 535 is too low - I had stopped when hitting a flat surface without walls
+  # 36836 is too high - I was spilling if it landed on a fall
+  # 36789 is too high
   def full_capacity
-    @water = -1
-    until water == @water
-      @water = water
-      trickle
-    end
-
+    trickle
     puts self
-    @water
+    water
   end
 
   def water
@@ -144,219 +124,99 @@ class Ground
       .filter(&:water?)
       .filter { |water| water.flow != :source }
       .count
+    
+    # Looking to see if I was double-counting any points
+    # @sections
+    #   .filter { |k,v| v.water? }
+    #   .filter { |k,v| v.flow != :source }
+    #   .map(&:first)
+    #   .filter { |x,y| y >= @y_range.first && y <= @y_range.last }
+    #   .uniq
+    #   .count
   end
 
   def trickle(starting = [500, 0])
-    base = surface_below(starting)
-    fill_trickle(starting, base) unless base.nil?
+    debug_print(starting)
+    base = fall(@sections[starting])
 
-    if base.nil?
-      fill_to_base(starting)
-    elsif spilling?(base) && contained?(base)
-      replace_spill(base)
-      trickle(starting)
-    elsif spilling?(base)
-      falling_from(base).map(&:coords).each { |point| trickle(point) }
-    elsif immediately_spillable?(base)
-      flow(base)
-    elsif fillable?(base)
-      fill(base)
-    else
-      flow(base)
+    return if base.nil? # bottom of the map
+    # has already been filled, but if not the surface we haven't spilled
+    return if base.water? && base.flow != :still
+
+    left_wall = spill_left(base)
+    right_wall = spill_right(base)
+    y = base.y
+
+    until left_wall.nil? || right_wall.nil?
+      left_wall, right_wall = fill(left_wall, right_wall, base.x, y-1)
+      y -= 1
     end
   end
 
-  def immediately_spillable?(base)
-    cursor = x
-    until @sections[[cursor, y]].nil? || @sections[[cursor, y - 1]]
-      cursor -= 1
-    end
-    left_edge = cursor
+  def debug_print(trickle_start)
+    @water_level ||= 10_000
 
-    cursor = x
-    until @sections[[cursor, y]].nil? || @sections[[cursor, y - 1]]
-      cursor += 1
-    end
-    right_edge = cursor
-
-    @sections[[left_edge, y]].nil? && @sections[[right_edge, y]].nil?
-  end
-
-  def fill_to_base(top)
-    bottom = Vein.new(top.first, @y_range.last+1)
-    fill_trickle(top, bottom)
-  end
-
-  def fill_trickle(top, bottom)
-    top = @sections[top]
-    raise "Can't trickle non_vertical" unless top.x == bottom.x
-
-    (top.y+1).upto(bottom.y-1).each { |y|
-      @sections[[top.x, y]] = Water.new(top.x, y, :fall)
-    }
-  end
-
-  def fill(base)
-    surface([base.x, base.y-1]).each { |x,y|
-      @sections[[x,y]] = Water.new(x, y, :still)
-    }
-  end
-
-  def flow(base)
-    l, r, l_fall, r_fall = cliffs(base)
-    puts [l,r,l_fall,r_fall,base].inspect
-
-    l.upto(r).each { |x|
-      @sections[[x,base.y-1]] = Water.new(x, base.y-1, :surface)
-    }
-
-    [l_fall, r_fall].compact.each { |x|
-      @sections[[x,base.y-1]] = Water.new(x, base.y-1, :fall)
-    }
-  end
-
-  def falling_from(point)
-    x, y = point.coords
-
-    l_fall = @sections.values.filter { |sec| sec.y == y && sec.x < x && sec.falling? }.max_by(&:x)
-    r_fall = @sections.values.filter { |sec| sec.y == y && sec.x > x && sec.falling? }.min_by(&:x)
-
-    [l_fall, r_fall].compact
-  end
-
-  def fillable?(point)
-    surface([point.x, point.y-1])&.all? { |x,y| @sections.include?([x,y+1]) }
-  end
-
-  def spilling?(point)
-    point.spilling?
-  end
-
-  def contained?(point)
-    x, y = point.coords
-
-    cursor = x
-    until not_water(cursor, y)
-      cursor -= 1
-    end
-    left_edge = cursor
-
-    cursor = x
-    until not_water(cursor, y)
-      cursor += 1
-    end
-    right_edge = cursor
-
-    if all_supported(left_edge+1, right_edge-1, y) &&
-        @sections[[left_edge, y]]&.vein? &&
-        @sections[[right_edge, y]]&.vein?
-      true
-    else
-      false
+    if water > @water_level
+      @water_level = (water / 10_000) * 10_000 + 10_000
     end
   end
 
-  def not_water(x, y)
-    @sections[[x, y]].nil? || !@sections[[x, y]].water?
+  def spill_left(base)
+    spill(base, -1)
   end
 
-  def replace_spill(point)
-    _, y = point.coords
-    l = wall_left_of(point)
-    r = wall_right_of(point)
-
-    (l+1).upto(r-1).each { |x|
-      @sections[[x,y]] = Water.new(x, y, :still)
-    }
+  def spill_right(base)
+    spill(base, +1)
   end
 
-  def wall_left_of(point)
-    x,y = point.coords
-    x -= 1
+  def spill(base, direction)
+    x, y = base.coords
+    water_level = y - 1
 
-    until @sections[[x, y]]&.vein?
-      x -= 1
+    until wall?(x, water_level) || fall_from?(x, water_level)
+      @sections[[x, water_level]] = Water.new(x, water_level, :surface)
+      x = x + direction
     end
 
-    x
-  end
+    return x if wall?(x, water_level)
 
-  def wall_right_of(point)
-    x,y = point.coords
-    x += 1
+    raise "Expected to fall from #{x}, #{y}" unless fall_from?(x, water_level)
 
-    until @sections[[x, y]]&.vein?
-      x += 1
-    end
+    @sections[[x, water_level]] = Water.new(x, water_level, :fall)
+    trickle([x, water_level])
 
-    x
-  end
-
-  def all_supported(left, right, y)
-    left.upto(right).all? { |x| @sections[[x, y+1]] }
-  end
-
-  def surface(point)
-    l = left_of(point)
-    r = right_of(point)
-
-    l && r ? between(l, r) : nil
-  end
-
-  def between(left, right)
-    raise "Nothing between different levels #{left.y}/#{right.y}" unless left.y == right.y
-
-    (left.x+1).upto(right.x-1).map { |x|
-      [x, left.y]
-    }
-  end
-
-  def cliffs(point)
-    x, y = point.coords ; y -= 1
-
-    cursor = x
-    until fall_from?(cursor, y) || wall?(cursor, y)
-      cursor += 1
-    end
-
-    r = fall_from?(cursor, y) ? cursor - 1 : cursor
-    r_fall = fall_from?(cursor, y) ? cursor : nil
-
-    cursor = x
-    until wall?(cursor, y) || fall_from?(cursor, y)
-      cursor -= 1
-    end
-
-    l = fall_from?(cursor, y) ? cursor : cursor + 1
-    l_fall = wall?(cursor, y) ? nil : cursor
-
-    [l,r,l_fall,r_fall]
-  end
-
-  def fall_from?(x, y)
-    !@sections.include?([x, y+1])
+    nil
   end
 
   def wall?(x, y)
-    @sections.include?([x, y]) && !@sections[[x, y+1]].water?
+    @sections[[x, y]]&.vein?
   end
 
-  def left_of(point)
-    x, y = point
-    @sections.values.filter { |sec| sec.x < x && sec.y == y }.max_by(&:x)
+  def fall_from?(x, y)
+    @sections[[x, y+1]].nil? || already_fell_from?(x, y)
   end
 
-  def right_of(point)
-    x, y = point
-    @sections.values.filter { |sec| sec.x > x && sec.y == y }.min_by(&:x)
+  def already_fell_from?(x, y)
+    @sections[[x, y+1]]&.water? && @sections[[x, y+1]].flow == :fall
   end
 
-  def surface_below(point)
-    x, y = point
-    @sections.values
-      .filter { |sec| sec.x == x && sec.y > y }
-      .reject { |sec| sec.falling? }
-      .min_by(&:y)
+  def fall(top)
+    x, y = top.coords
+    return nil if y >= @y_range.last
+    return @sections[[x, y+1]] if @sections[[x, y+1]]
+
+    fall(@sections[[x, y+1]] = Water.new(x, y+1, :fall))
+  end
+
+  def fill(left_wall, right_wall, x, water_level)
+    (left_wall+1).upto(right_wall-1) { |x|
+      @sections[[x, water_level]] = Water.new(x, water_level, :still)
+    }
+
+    left_wall = spill_left(@sections[[x, water_level]])
+    right_wall = spill_right(@sections[[x, water_level]])
+
+    return [left_wall, right_wall]
   end
 end
 
