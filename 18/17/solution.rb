@@ -4,69 +4,10 @@ require 'debug'
 X_REGEX = /x=(\S+), y=(\S+)/
 Y_REGEX = /y=(\S+), x=(\S+)/
 
-class Object
-  def coords
-    raise "Not a point" unless respond_to?(:x) && respond_to?(:y)
-
-    [x, y]
-  end
-end
-
-Vein = Struct.new(:x, :y)
-Water = Struct.new(:x, :y, :flow)
-
-class Vein
-  def to_s
-    ?#
-  end
-
-  def water?
-    false
-  end
-
-  def vein?
-    true
-  end
-end
-
-class Water
-  def to_s
-    case flow
-    when :still
-      ?~
-    when :fall, :surface
-      ?|
-    when :source
-      ?+
-    end
-  end
-
-  def water?
-    true
-  end
-
-  def vein?
-    false
-  end
-end
-
-class Vein
-  def self.range(x_start, x_end, y_start, y_end)
-    x_end = x_start unless x_end
-    y_end = y_start unless y_end
-
-    x_start.upto(x_end).flat_map { |x|
-      y_start.upto(y_end).map { |y|
-        new(x, y)
-      }
-    }
-  end
-end
-
 class Ground
-  def initialize(sections, y_range)
-    @sections = sections
-    @y_range = y_range
+  def initialize(grid, bottom)
+    @grid = grid
+    @bottom = bottom
   end
 
   def self.parse(text)
@@ -82,26 +23,32 @@ class Ground
       x_start, x_end = x_group.split("..").map(&:to_i)
       y_start, y_end = y_group.split("..").map(&:to_i)
 
-      Vein.range(x_start, x_end, y_start, y_end)
-    }.group_by { |vein| [vein.x, vein.y] }
-     .transform_values(&:uniq)
-     .transform_values { |list|
-      raise "Unexpected number of things in the same spot: #{list}" if list.size != 1
-      list.first
-    }
+      range(x_start, x_end, y_start, y_end)
+    }.map { |point| [point, '#'] }
+     .to_h
 
-    sections[[500,0]] = Water.new(500, 0, :source)
+    sections[[500,0]] = ?+
 
-    new(sections, sections.values.map(&:y).minmax)
+    new(sections, sections.keys.map(&:last).max)
+  end
+
+  def self.range(x_start, x_end, y_start, y_end)
+    raise "Got a box instead of a line: #{x_start}, #{x_end}, #{y_start}, #{y_end}" if !x_end.nil? && !y_end.nil?
+
+    if x_end.nil?
+      y_start.upto(y_end).map { |y| [x_start, y] }
+    else
+      x_start.upto(x_end).map { |x| [x, y_start] }
+    end
   end
 
   def to_s
-    ymn, ymx = @y_range
-    xmn, xmx = @sections.keys.map(&:first).minmax
+    ymn, ymx = 0, @bottom
+    xmn, xmx = @grid.keys.map(&:first).minmax
 
     ymn.upto(ymx).map { |y|
       xmn.upto(xmx).map { |x|
-        @sections[[x, y]]&.to_s || '.'
+        @grid[[x, y]] || '.'
       }.join
     }.join("\n")
   end
@@ -116,125 +63,6 @@ class Ground
   # 29820 isn't right but it doesn't say high or low anymore
   # 6162 - I deferred all of the trickles and, still wrong, looking at output it didn't even finish
   def full_capacity
-    trickle
-
-    puts self
-    puts [
-      water,
-      @sections.size,
-      @sections.count { |_, v| v.vein? },
-      @sections.values.map(&:x).minmax,
-      @sections.values.map(&:y).minmax,
-      @sections.values.map { |s| s.water? ? s.flow : s.class.to_s.downcase.to_sym }.uniq
-    ].inspect
-    water
-  end
-
-  def water
-    @sections.values
-      .filter(&:water?)
-      .filter { |water| water.flow != :source }
-      .count
-  end
-
-  def trickle(starting = [500, 0])
-    base = fall(@sections[starting])
-    debug_print(starting)
-    puts "#{self}\n\n"
-
-    return if base.nil? # bottom of the map
-    # has already been filled, but if not the surface we haven't spilled
-    return if base.water? && base.flow != :still
-
-    spill_from(base)
-  end
-
-  def spill_from(base)
-    left_wall = spill_left(base)
-    right_wall = spill_right(base)
-    y = base.y
-
-    until left_wall.nil? || right_wall.nil?
-      y -= 1
-      left_wall, right_wall = fill(left_wall, right_wall, base.x, y)
-    end
-  end
-
-  def debug_print(trickle_start)
-    # puts trickle_start.inspect
-    # @water_level ||= 10_000
-
-    # if water > @water_level
-      # puts self
-      # @water_level = (water / 10_000) * 10_000 + 10_000
-    # end
-  end
-
-  def spill_left(base)
-    spill(base, -1)
-  end
-
-  def spill_right(base)
-    # Sometimes finishes early
-    return if @sections[[base.x, base.y-1]]&.water? && @sections[[base.x+1, base.y-1]]&.water?
-    spill(base, +1)
-  end
-
-  def spill(base, direction)
-    x, y = base.coords
-    water_level = y - 1
-
-    until wall?(x, water_level) || fall_from?(x, water_level)
-      @sections[[x, water_level]] = Water.new(x, water_level, :surface)
-      x = x + direction
-    end
-
-    return x if wall?(x, water_level)
-
-    raise "Expected to fall from #{x}, #{y}" unless fall_from?(x, water_level)
-
-    @sections[[x, water_level]] = Water.new(x, water_level, :fall)
-    trickle([x, water_level])
-
-    nil
-  end
-
-  def wall?(x, y)
-    @sections[[x, y]]&.vein?
-  end
-
-  def fall_from?(x, y)
-    @sections[[x, y+1]].nil? || already_fell_to?(x, y+1)
-  end
-
-  def already_fell_to?(x, y)
-    @sections[[x, y]]&.water? &&
-      @sections[[x, y]].flow == :fall &&
-      # Is not fallling if it's been filled so the one below is not falling
-      !fell_but_now_still?(x, y+1)
-  end
-
-  def fell_but_now_still?(x, y)
-    @sections[[x, y]]&.water? && @sections[[x, y]].flow == :still
-  end
-
-  def fall(top)
-    x, y = top.coords
-    return nil if y >= @y_range.last
-    return @sections[[x, y+1]] if @sections[[x, y+1]]
-
-    fall(@sections[[x, y+1]] = Water.new(x, y+1, :fall))
-  end
-
-  def fill(left_wall, right_wall, x, water_level)
-    (left_wall+1).upto(right_wall-1) { |x|
-      @sections[[x, water_level]] = Water.new(x, water_level, :still)
-    }
-
-    left_wall = spill_left(@sections[[x, water_level]])
-    right_wall = spill_right(@sections[[x, water_level]])
-
-    return [left_wall, right_wall]
   end
 end
 
