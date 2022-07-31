@@ -151,8 +151,8 @@ class Ground
     y = base.y
 
     until left_wall.nil? || right_wall.nil?
-      left_wall, right_wall = fill(left_wall, right_wall, base.x, y-1)
       y -= 1
+      left_wall, right_wall = fill(left_wall, right_wall, base.x, y)
     end
   end
 
