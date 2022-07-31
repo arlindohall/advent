@@ -112,9 +112,20 @@ class Ground
 
   # 535 is too low - I had stopped when hitting a flat surface without walls
   # 36836 is too high - I was spilling if it landed on a fall
-  # 36789 is too high
+  # 36789 is too high - I think it's related to the extra filling of already underwater
+  # 29820 isn't right but it doesn't say high or low anymore
   def full_capacity
     trickle
+
+    # # Not sure where I went wrong in recursion but all water under other water
+    # # should be still, unless above water is falling
+    # @sections.keys.each { |x, y|
+    #   if @sections[[x,y]].water? &&
+    #       @sections[[x,y-1]]&.water? &&
+    #       ![:fall, :source].include?(@sections[[x,y-1]].flow)
+    #     @sections[[x,y]] = Water.new(x, y, :still)
+    #   end
+    # }
     puts self
     water
   end
@@ -124,20 +135,12 @@ class Ground
       .filter(&:water?)
       .filter { |water| water.flow != :source }
       .count
-    
-    # Looking to see if I was double-counting any points
-    # @sections
-    #   .filter { |k,v| v.water? }
-    #   .filter { |k,v| v.flow != :source }
-    #   .map(&:first)
-    #   .filter { |x,y| y >= @y_range.first && y <= @y_range.last }
-    #   .uniq
-    #   .count
   end
 
   def trickle(starting = [500, 0])
-    debug_print(starting)
     base = fall(@sections[starting])
+    # debug_print(starting)
+    # puts "#{self}\n\n"
 
     return if base.nil? # bottom of the map
     # has already been filled, but if not the surface we haven't spilled
@@ -166,6 +169,8 @@ class Ground
   end
 
   def spill_right(base)
+    # Sometimes finishes early
+    return if @sections[[base.x, base.y-1]]&.water? && @sections[[base.x+1, base.y-1]]&.water?
     spill(base, +1)
   end
 
@@ -219,6 +224,15 @@ class Ground
     return [left_wall, right_wall]
   end
 end
+
+@example_bucket = <<scan.strip
+x=495, y=5..7
+x=505, y=5..7
+y=7, x=495..505
+x=490, y=3..10
+x=510, y=3..10
+y=10, x=490..510
+scan
 
 @example = <<-scan.strip
 x=495, y=2..7
