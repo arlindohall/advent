@@ -116,13 +116,7 @@ class Ground
   # 29820 isn't right but it doesn't say high or low anymore
   # 6162 - I deferred all of the trickles and, still wrong, looking at output it didn't even finish
   def full_capacity
-    @queue = []
     trickle
-
-    # Queue up trickles to happen after spills
-    until @queue.empty?
-      @queue.shift[]
-    end
 
     puts self
     puts [
@@ -194,8 +188,7 @@ class Ground
     raise "Expected to fall from #{x}, #{y}" unless fall_from?(x, water_level)
 
     @sections[[x, water_level]] = Water.new(x, water_level, :fall)
-    # Defer each trickle until the spill has happened one level up
-    @queue << -> {trickle([x, water_level])}
+    trickle([x, water_level])
 
     nil
   end
