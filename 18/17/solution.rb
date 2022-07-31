@@ -140,12 +140,16 @@ class Ground
   def trickle(starting = [500, 0])
     base = fall(@sections[starting])
     debug_print(starting)
-    # puts "#{self}\n\n"
+    puts "#{self}\n\n"
 
     return if base.nil? # bottom of the map
     # has already been filled, but if not the surface we haven't spilled
     return if base.water? && base.flow != :still
 
+    spill_from(base)
+  end
+
+  def spill_from(base)
     left_wall = spill_left(base)
     right_wall = spill_right(base)
     y = base.y
@@ -157,11 +161,13 @@ class Ground
   end
 
   def debug_print(trickle_start)
-    @water_level ||= 10_000
+    # puts trickle_start.inspect
+    # @water_level ||= 10_000
 
-    if water > @water_level
-      @water_level = (water / 10_000) * 10_000 + 10_000
-    end
+    # if water > @water_level
+      # puts self
+      # @water_level = (water / 10_000) * 10_000 + 10_000
+    # end
   end
 
   def spill_left(base)
@@ -198,11 +204,18 @@ class Ground
   end
 
   def fall_from?(x, y)
-    @sections[[x, y+1]].nil? || already_fell_from?(x, y)
+    @sections[[x, y+1]].nil? || already_fell_to?(x, y+1)
   end
 
-  def already_fell_from?(x, y)
-    @sections[[x, y+1]]&.water? && @sections[[x, y+1]].flow == :fall
+  def already_fell_to?(x, y)
+    @sections[[x, y]]&.water? &&
+      @sections[[x, y]].flow == :fall &&
+      # Is not fallling if it's been filled so the one below is not falling
+      !fell_but_now_still?(x, y+1)
+  end
+
+  def fell_but_now_still?(x, y)
+    @sections[[x, y]]&.water? && @sections[[x, y]].flow == :still
   end
 
   def fall(top)
@@ -229,6 +242,24 @@ end
 x=495, y=5..7
 x=505, y=5..7
 y=7, x=495..505
+x=490, y=3..10
+x=510, y=3..10
+y=10, x=490..510
+scan
+
+@example_obstruction = <<scan.strip
+x=493, y=6..7
+x=498, y=4..7
+y=7, x=493..498
+x=490, y=3..10
+x=510, y=3..10
+y=10, x=490..510
+scan
+
+@example_channel = <<scan.strip
+x=492, y=6..7
+x=497, y=4..7
+y=7, x=492..497
 x=490, y=3..10
 x=510, y=3..10
 y=10, x=490..510
