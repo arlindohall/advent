@@ -1,10 +1,9 @@
 
-require 'debug'
-
 X_REGEX = /x=(\S+), y=(\S+)/
 Y_REGEX = /y=(\S+), x=(\S+)/
 
 class Ground
+  @@water_chars = "|~".chars
   def initialize(grid, bottom)
     @grid = grid
     @bottom = bottom
@@ -24,7 +23,7 @@ class Ground
       y_start, y_end = y_group.split("..").map(&:to_i)
 
       range(x_start, x_end, y_start, y_end)
-    }.map { |point| [point, '#'] }
+    }.map { |point| [point, ?#] }
      .to_h
 
     sections[[500,0]] = ?+
@@ -48,7 +47,7 @@ class Ground
 
     ymn.upto(ymx).map { |y|
       xmn.upto(xmx).map { |x|
-        @grid[[x, y]] || '.'
+        @grid[[x, y]] || ?.
       }.join
     }.join("\n")
   end
@@ -57,12 +56,151 @@ class Ground
     "Ground:____________\n#{to_s}\n____________"
   end
 
-  # 535 is too low - I had stopped when hitting a flat surface without walls
-  # 36836 is too high - I was spilling if it landed on a fall
-  # 36789 is too high - I think it's related to the extra filling of already underwater
-  # 29820 isn't right but it doesn't say high or low anymore
-  # 6162 - I deferred all of the trickles and, still wrong, looking at output it didn't even finish
   def full_capacity
+    fall_from([500, 0])
+    puts self
+    water
+  end
+
+  def water
+    @grid.values.count { |square| @@water_chars.include?(square) }
+  end
+
+  def water?(x, y)
+    @@water_chars.include?(@grid[[x,y]])
+  end
+
+  def ground?(x, y)
+    @grid[[x,y]] == ?#
+  end
+
+  def free?(x, y)
+    !@grid.include?([x,y])
+  end
+
+  def source?(x, y)
+    @grid[[x,y]] == ?+
+  end
+
+  def off_grid?(x, y)
+    y > @bottom
+  end
+
+  def fall_from(point)
+    x, y = point
+    # puts "falling from #{point}\n#{self}\n\n"
+    
+    # If off_grid we don't make more water because there's infinite
+    # water below this point.
+    return if off_grid?(x, y)
+
+    if water?(x, y)
+      # Has reached a maybe-full pool, might increase water level
+      fill_if_bound(x, y)
+    elsif free?(x, y)
+      # Falling into space still, just keep going
+      @grid[[x,y]] = ?|
+      fall_from([x, y+1])
+      fill_if_bound(x, y+1)
+
+      if @grid[[x, y+1]] == ?~
+        bottom_layer(x, y)
+      end
+    elsif ground?(x, y)
+      # Just hit the ground, definitely spill
+      bottom_layer(x, y-1)
+    elsif source?(x, y)
+      # Just starting falling, least likely thing
+      fall_from([x, y+1])
+    else
+      raise "Invalid value at #{[x,y].inspect}=>#{@grid[[x,y]]}"
+    end
+  end
+
+  def bottom_layer(x, y)
+    spill_left(x, y)
+    spill_right(x, y)
+    fill_if_bound(x, y)
+  end
+
+  def spill_left(x, y)
+    spill(x, y, -1)
+  end
+
+  def spill_right(x, y)
+    spill(x, y, +1)
+  end
+
+  def spill(x, y, direction)
+    # puts "spilling from #{[x,y]}\n#{self}\n\n"
+    # If there's a wall here, we've spilled as far as we can
+    return ?~ if ground?(x, y)
+
+    # If there's space below us, we should fall first, then
+    # check if we filled a container below us, and if we
+    # didn't, then there's nothing to spill to our side and we
+    # should quit here
+    if free?(x, y+1)
+      fall_from([x,y]) # Sets this to ?| and falls from there
+      return ?| if @grid[[x,y+1]] == ?|
+    end
+    
+    @grid[[x,y]] = ?|
+    ch = spill(x+direction, y, direction)
+    @grid[[x,y]] = ch if ch == ?~
+
+    return @grid[[x,y]]
+  end
+
+  def fill_if_bound(x, y)
+    # puts "fill from #{[x,y]}\n#{self}\n\n"
+    return if ground?(x+1, y)
+    return if ground?(x-1, y)
+    return if @grid[[x+1,y]] == @grid[[x-1,y]]
+    return if @grid[[x+1,y]].nil? || @grid[[x-1,y]].nil?
+
+    if @grid[[x+1,y]] == '~'
+      fill_right(x, y)
+    elsif @grid[[x-1,y]] == '~'
+      fill_left(x, y)
+    else
+      raise "Invalid state at #{[x,y].inspect}=>#{@grid[[x-1,y]]}, #{@grid[[x,y]]}, #{@grid[[x+1,y]]}"
+    end
+  end
+
+  def fill_left(x, y)
+    fill(x, y, -1)
+  end
+
+  def fill_right(x, y)
+    fill(x, y, +1)
+  end
+
+  def fill(x, y, direction)
+    while water?(x, y)
+      @grid[[x,y]] = ?|
+      x += direction
+    end
+  end
+
+  def bound(x, y)
+    cursor = x
+    while water?(cursor, y)
+      cursor -= 1
+    end
+
+    left = cursor
+    return unless ground?(cursor, y)
+
+    cursor = x
+    while water?(cursor, y)
+      cursor += 1
+    end
+
+    right = cursor
+    return unless ground?(cursor, y)
+
+    [left, right]
   end
 end
 
@@ -75,7 +213,7 @@ x=510, y=3..10
 y=10, x=490..510
 scan
 
-@example_obstruction = <<scan.strip
+@example_overflow = <<scan.strip
 x=493, y=6..7
 x=498, y=4..7
 y=7, x=493..498
