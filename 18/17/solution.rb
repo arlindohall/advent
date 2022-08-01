@@ -4,8 +4,9 @@ Y_REGEX = /y=(\S+), x=(\S+)/
 
 class Ground
   @@water_chars = "|~".chars
-  def initialize(grid, bottom)
+  def initialize(grid, top, bottom)
     @grid = grid
+    @top = top
     @bottom = bottom
   end
 
@@ -26,9 +27,10 @@ class Ground
     }.map { |point| [point, ?#] }
      .to_h
 
+    top, bottom = sections.keys.map(&:last).minmax
     sections[[500,0]] = ?+
 
-    new(sections, sections.keys.map(&:last).max)
+    new(sections, top, bottom)
   end
 
   def self.range(x_start, x_end, y_start, y_end)
@@ -46,9 +48,9 @@ class Ground
     xmn, xmx = @grid.keys.map(&:first).minmax
 
     ymn.upto(ymx).map { |y|
-      xmn.upto(xmx).map { |x|
-        @grid[[x, y]] || ?.
-      }.join
+      ' ' + xmn.upto(xmx).map { |x|
+        @grid[[x, y]] || ' '
+      }.join + " #{y}"
     }.join("\n")
   end
 
@@ -62,8 +64,24 @@ class Ground
     water
   end
 
+  def solve
+    puts full_capacity
+    puts undrained_water
+  end
+
   def water
-    @grid.values.count { |square| @@water_chars.include?(square) }
+    @grid
+      .filter { |coord, _square| coord.last >= @top && coord.last <= @bottom }
+      .map { |_, square| square }
+      .count { |square| @@water_chars.include?(square) }
+  end
+
+  def undrained_water
+    # Assumes already solved
+    @grid
+      .filter { |coord, _square| coord.last >= @top && coord.last <= @bottom }
+      .map { |_, square| square }
+      .count(?~)
   end
 
   def water?(x, y)
@@ -132,9 +150,10 @@ class Ground
   end
 
   def spill(x, y, direction)
-    # puts "spilling from #{[x,y]}\n#{self}\n\n"
+    # puts "spilling #{direction == 1 ? "right" : "left"} from #{[x,y]}\n#{self}\n\n"
     # If there's a wall here, we've spilled as far as we can
     return ?~ if ground?(x, y)
+    return ?| if already_fell_without_base?(x, y)
 
     # If there's space below us, we should fall first, then
     # check if we filled a container below us, and if we
@@ -152,12 +171,44 @@ class Ground
     return @grid[[x,y]]
   end
 
+  def already_fell_without_base?(x, y)
+    @grid[[x,y]] == ?| && @grid[[x,y+1]] == ?|
+  end
+
   def fill_if_bound(x, y)
     # puts "fill from #{[x,y]}\n#{self}\n\n"
-    return if ground?(x+1, y)
-    return if ground?(x-1, y)
     return if @grid[[x+1,y]] == @grid[[x-1,y]]
     return if @grid[[x+1,y]].nil? || @grid[[x-1,y]].nil?
+
+    # I don't even know
+    # This line fixes a bug but I don't actually know what causes
+    # the bug. The problem is basically that I end up trying to fill
+    # left or right from a wall after water lands directly on the
+    # wall and I end up filling over top of the wall, only when I
+    # fill over the top, not when it spills. I could track it down
+    # but I don't want to.
+
+    # The right algorithm is probably even simpler, just send one
+    # water molecule left or right until it hits a wall, and if there's
+    # no wall, then only follow the spillover but don't mark it,
+    # then once all of the settled water is there, go back and find the
+    # spills... I think I saw someone do that on Reddit.
+    return if ground?(x, y)
+
+    if ground?(x+1, y) && ground?(x-1, y)
+      @grid[[x,y]] = ?~
+      return
+    end
+
+    if ground?(x+1, y)
+      @grid[[x,y]] = @grid[[x-1,y]]
+      return
+    end
+
+    if ground?(x-1, y)
+      @grid[[x,y]] = @grid[[x+1,y]]
+      return
+    end
 
     if @grid[[x+1,y]] == '~'
       fill_right(x, y)
@@ -204,6 +255,20 @@ class Ground
   end
 end
 
+def examples
+  [
+    @example,
+    @example_bucket,
+    @example_overflow,
+    @example_channel,
+    @example_edge,
+    @example_capillary,
+    @example_corner,
+  ].each { |ex|
+    puts Ground.parse(ex).full_capacity ; puts
+  }
+end
+
 @example_bucket = <<scan.strip
 x=495, y=5..7
 x=505, y=5..7
@@ -229,6 +294,39 @@ y=7, x=492..497
 x=490, y=3..10
 x=510, y=3..10
 y=10, x=490..510
+scan
+
+# ......|..
+# |||||||||
+# |||||~#||
+# |||#~~#||
+# |||#~~#||
+# |||####||
+@example_edge = <<scan.strip
+x=500, y=2..5
+x=497, y=3..5
+y=5, x=497..500
+scan
+
+# .#..|.............
+# .#||||||||||||||||
+# ..||#~~~~~~~~~~#||
+# ..||############||
+@example_capillary = <<scan.strip
+x=497, y=0..1
+x=500, y=2..3
+x=511, y=2..3
+y=3, x=500..511
+scan
+
+@example_corner = <<scan.strip
+x=490, y=3..10
+x=510, y=3..10
+y=10, x=490..510
+x=500, y=5..7
+x=502, y=5..7
+y=7, x=500..502
+y=5, x=500..502
 scan
 
 @example = <<-scan.strip
