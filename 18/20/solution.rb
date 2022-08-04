@@ -1,7 +1,7 @@
 
 require_relative '../../lib/grid'
 
-Room = Struct.new(:n, :e, :s, :w, :distance)
+Location = Struct.new(:x, :y, :distance)
 
 class Step
   def initialize(ch)
@@ -13,27 +13,26 @@ class Step
   end
 
   def follow(starting_points, rooms)
+      puts [$i += 1, rooms.size, starting_points.size].inspect
     starting_points.map { |sp|
-      rooms[sp].send("#{@ch.downcase.to_sym}=", true)
-
-      x, y = sp
+      x, y, distance = sp.values
       case @ch
       when ?N
         point = [x,y+1]
-        rooms[point].s = true
       when ?E
         point = [x+1,y]
-        rooms[point].w = true
       when ?S
         point = [x,y-1]
-        rooms[point].n = true
       when ?W
         point = [x-1,y]
-        rooms[point].e = true
       end
 
-      point
-    }
+      rooms[point] = rooms[point] ?
+        [rooms[point], distance].min :
+        distance + 1
+
+      Location.new(*point, distance + 1)
+    }.uniq
   end
 end
 
@@ -43,10 +42,11 @@ class Option
   end
 
   def follow(starting_points, rooms)
+      puts [$i += 1, rooms.size, starting_points.size].inspect
     @path.each { |step|
       starting_points = step.follow(starting_points, rooms)
     }
-    starting_points
+    starting_points.uniq
   end
 
   def serialize
@@ -60,9 +60,10 @@ class Branch
   end
 
   def follow(starting_points, rooms)
+      puts [$i += 1, rooms.size, starting_points.size].inspect
     @options.flat_map { |opt|
       opt.follow(starting_points, rooms)
-    }
+    }.uniq
   end
 
   def serialize
@@ -79,126 +80,47 @@ class Directions < SparseGrid
 
   def solve
     follow
-    shortest_path
-  end
-
-  def follow
-    @locations, @index = [[0, 0]], 0
-    @i = 0
-    @route.each { |step|
-      puts @i += 1
-      @locations = step.follow(@locations, rooms)
-    }
     # debug
+    rooms.values.max
   end
 
-  def shortest_path
-    @locations, @visited = [[0,0]], Set[[0,0]]
-    @distance = -1
-    until @locations.empty?
-      @distance += 1
-      puts @distance
-      search
-    end
-    @distance
-  end
+  # 3526 <- too low, I think I'm making a mistake that's hidden by line 95,
+  # which to be sure 95 is an optimization because it doesnt' follow unnecessary
+  # paths that are already too big, but for whatever reason a bigger number
+  # shows up than when it's not there, like I'm counting down sometimes?
+  def follow
+    @locations = [Location.new(0, 0, 0)]
+    rooms[[0,0]] = 0
 
-  def search
-    @locations = @locations.flat_map { |x,y|
-      room = rooms[[x,y]]
-      room.distance = @distance
-      @visited << [x,y]
-
-      neighbors(x, y).filter { |nb|
-        room.send(door([x,y], nb))
-      }
-    }.reject { |nb|
-      @visited.include?(nb)
-    }.filter{ |nb|
-      rooms.include?(nb)
-    }.uniq
-  end
-
-  def door(pt1, pt2)
-    x1,y1 = pt1
-    x2,y2 = pt2
-    case
-    when x1 == x2 && y2 == y1 - 1
-      :s
-    when x1 == x2 && y2 == y1 + 1
-      :n
-    when y1 == y2 && x2 == x1 - 1
-      :w
-    when y1 == y2 && x2 == x1 + 1
-      :e
-    else
-      raise "#{pt1} is not a neighbor of #{pt2}"
-    end
+    $i = 0
+    @route.each { |step|
+      @locations = step.follow(@locations, rooms)
+        .filter { |loc| rooms[[loc.x,loc.y]] >= loc.distance }
+      # debug ; puts
+      puts [$i += 1, rooms.size, @locations.size].inspect
+    }
   end
 
   def rooms
-    @rooms ||= make_rooms_hash 
-  end
-
-  def make_rooms_hash
-    hash = Hash.new { |hash, key|
-      hash[key] = Room.new(false, false, false, false)
-    }.tap { |h| h[[0,0]] }
+    @rooms ||= Hash.new
   end
 
   def serialize
     "^#{@route.map { |s| s.serialize}.join}$"
   end
 
-  def to_s
+  def debug
     xmin, xmax = rooms.keys.map(&:first).minmax
     ymin, ymax = rooms.keys.map(&:last).minmax
+    width = rooms.values.max.to_s.chars.count + 1
 
-    ymax.downto(ymin).map { |y|
-      walls_above_row_to_s(y, xmin, xmax) +
-        "\n" +
-        row_to_s(y, xmin, xmax)
-    }.join("\n") +
-      "\n" +
-      walls_below_row_to_s(ymin, xmin, xmax)
-  end
-
-  def walls_above_row_to_s(row, xmin, xmax)
-    xmin.upto(xmax).map { |x|
-      if rooms.include?([x,row])
-        "#" + (rooms[[x,row]].n ? '-' : '#')
-      else
-        '  '
-      end
-    }.join + (rooms.include?([xmax,row]) ? '#' : ' ')
-  end
-
-  def walls_below_row_to_s(row, xmin, xmax)
-    xmin.upto(xmax).map { |x|
-      if rooms.include?([x,row])
-        "#" + (rooms[[x,row]].s ? '-' : '#')
-      else
-        '  '
-      end
-    }.join + (rooms.include?([xmax,row]) ? '#' : ' ')
-  end
-
-  def row_to_s(row, xmin, xmax)
-    xmin.upto(xmax).map { |x|
-      if rooms.include?([x,row])
-        room = rooms[[x,row]]
-        (room.w ? '|' : '#') +
-          ([row,x] == [0,0] ? 'X' : (room.distance ? room.distance.to_s[-1] : '.'))
-      else
-        '  '
-      end
-    }.join + (rooms.include?([xmax,row]) ? (rooms[[xmax,row]].e ? '|' : '#') : ' ')
-  end
-
-  def debug
-    puts self.to_s
-    puts @locations.inspect
-    puts @visited if @visited
+    puts [@locations, rooms].inspect
+    puts ymax.downto(ymin).map { |y|
+      xmin.upto(xmax).map { |x|
+        ch = rooms[[x,y]].to_s || '.'
+        ch.ljust(width)
+      }.join
+    }.join("\n")
   end
 end
 
