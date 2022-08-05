@@ -15,6 +15,8 @@ class Step
   def follow(starting_points, rooms)
     starting_points.map { |sp|
       x, y, distance = sp.values
+      distance += 1
+
       case @ch
       when ?N
         point = [x,y+1]
@@ -30,7 +32,7 @@ class Step
         [rooms[point], distance].min :
         distance
 
-      Location.new(*point, distance + 1)
+      Location.new(*point, distance)
     }.uniq
   end
 end
@@ -81,23 +83,13 @@ class Directions < SparseGrid
     [rooms.values.max, rooms.values.count { |v| v >= 1000 }]
   end
 
-  # 3526 <- too low, I think I'm making a mistake that's hidden by line 95,
-  # which to be sure 95 is an optimization because it doesnt' follow unnecessary
-  # paths that are already too big, but for whatever reason a bigger number
-  # shows up than when it's not there, like I'm counting down sometimes?
   def follow
-    @locations = [Location.new(0, 0, 1)]
-    rooms[[0,0]] = 1
+    @locations = [Location.new(0, 0, 0)]
+    rooms[[0,0]] = 0
 
     @route.each { |step|
-      # Filter out markers that are searchign but are more than one further than
-      # the distance at that location. The reason it's one further is that the
-      # markers have already traveled to that spot, but they are incremented
-      # and the spot is not incremented. So, for example, the marker at [0,0]
-      # at the start has distance 1, which it will impart to the next space, but
-      # the space [0,0] has a distance of 0, which we don't want to filter out.
       @locations = step.follow(@locations, rooms)
-        .filter { |marker| marker.distance <= rooms[[marker.x, marker.y]] + 1 }
+        .filter { |marker| marker.distance <= rooms[[marker.x, marker.y]] }
       # debug ; puts "#{step.inspect}\n"
     }
   end
