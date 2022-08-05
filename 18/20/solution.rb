@@ -27,8 +27,8 @@ class Step
       end
 
       rooms[point] = rooms[point] ?
-        [rooms[point], distance + 1].min :
-        distance + 1
+        [rooms[point], distance].min :
+        distance
 
       Location.new(*point, distance + 1)
     }.uniq
@@ -86,12 +86,18 @@ class Directions < SparseGrid
   # paths that are already too big, but for whatever reason a bigger number
   # shows up than when it's not there, like I'm counting down sometimes?
   def follow
-    @locations = [Location.new(0, 0, 0)]
-    rooms[[0,0]] = 0
+    @locations = [Location.new(0, 0, 1)]
+    rooms[[0,0]] = 1
 
     @route.each { |step|
+      # Filter out markers that are searchign but are more than one further than
+      # the distance at that location. The reason it's one further is that the
+      # markers have already traveled to that spot, but they are incremented
+      # and the spot is not incremented. So, for example, the marker at [0,0]
+      # at the start has distance 1, which it will impart to the next space, but
+      # the space [0,0] has a distance of 0, which we don't want to filter out.
       @locations = step.follow(@locations, rooms)
-        .filter { |loc| rooms[[loc.x,loc.y]] >= loc.distance }
+        .filter { |marker| marker.distance <= rooms[[marker.x, marker.y]] + 1 }
       # debug ; puts "#{step.inspect}\n"
     }
   end
@@ -160,18 +166,18 @@ def solve(for_real: false)
   return Directions.parse_directions(@input).solve if for_real
 
   examples = [
-    @example_small, [3, 0],
-    @example, [10, 0],
-    @example_empty, [18, 0],
-    @example_extra1, [23, 0],
-    @example_extra2, [31, 0],
+    @example_small, 3,
+    @example, 10,
+    @example_empty, 18,
+    @example_extra1, 23,
+    @example_extra2, 31,
   ].each_slice(2)
    .map { |example, expected| [Directions.parse_directions(example), expected] }
 
-  printable = examples.map { |ex,r| [ex.serialize, r] }
+  printable = examples.map { |ex,r| [ex.serialize, ex.solve.first, r] }
 
   raise "failed at least one example #{printable}" unless
-    examples.all? { |ex, result| ex.solve == result }
+    examples.all? { |ex, result| ex.solve.first == result }
   
   printable
 end
