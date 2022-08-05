@@ -13,7 +13,6 @@ class Step
   end
 
   def follow(starting_points, rooms)
-      puts [$i += 1, rooms.size, starting_points.size].inspect
     starting_points.map { |sp|
       x, y, distance = sp.values
       case @ch
@@ -28,7 +27,7 @@ class Step
       end
 
       rooms[point] = rooms[point] ?
-        [rooms[point], distance].min :
+        [rooms[point], distance + 1].min :
         distance + 1
 
       Location.new(*point, distance + 1)
@@ -42,7 +41,7 @@ class Option
   end
 
   def follow(starting_points, rooms)
-      puts [$i += 1, rooms.size, starting_points.size].inspect
+    return starting_points if @path.empty?
     @path.each { |step|
       starting_points = step.follow(starting_points, rooms)
     }
@@ -60,7 +59,6 @@ class Branch
   end
 
   def follow(starting_points, rooms)
-      puts [$i += 1, rooms.size, starting_points.size].inspect
     @options.flat_map { |opt|
       opt.follow(starting_points, rooms)
     }.uniq
@@ -80,8 +78,7 @@ class Directions < SparseGrid
 
   def solve
     follow
-    # debug
-    rooms.values.max
+    [rooms.values.max, rooms.values.count { |v| v >= 1000 }]
   end
 
   # 3526 <- too low, I think I'm making a mistake that's hidden by line 95,
@@ -92,12 +89,10 @@ class Directions < SparseGrid
     @locations = [Location.new(0, 0, 0)]
     rooms[[0,0]] = 0
 
-    $i = 0
     @route.each { |step|
       @locations = step.follow(@locations, rooms)
         .filter { |loc| rooms[[loc.x,loc.y]] >= loc.distance }
-      # debug ; puts
-      puts [$i += 1, rooms.size, @locations.size].inspect
+      # debug ; puts "#{step.inspect}\n"
     }
   end
 
@@ -159,6 +154,26 @@ class Directions
       [Branch.new(groups.map { |g| Option.new(g) }), idx]
     end
   end
+end
+
+def solve(for_real: false)
+  return Directions.parse_directions(@input).solve if for_real
+
+  examples = [
+    @example_small, [3, 0],
+    @example, [10, 0],
+    @example_empty, [18, 0],
+    @example_extra1, [23, 0],
+    @example_extra2, [31, 0],
+  ].each_slice(2)
+   .map { |example, expected| [Directions.parse_directions(example), expected] }
+
+  printable = examples.map { |ex,r| [ex.serialize, r] }
+
+  raise "failed at least one example #{printable}" unless
+    examples.all? { |ex, result| ex.solve == result }
+  
+  printable
 end
 
 @example = "^ENWWW(NEEE|SSE(EE|N))$"
