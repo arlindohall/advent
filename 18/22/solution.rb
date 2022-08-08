@@ -102,7 +102,7 @@ class Cave
   end
 
   def assert_priority_queue
-    p [@time, @priority_queue.size, @priority_queue[@time]&.size] #if @time % 10 == 0
+    p [@time, @priority_queue.size, @priority_queue[@time]&.size] if @time % 100 == 0
     raise "Expected queue=#{@priority_queue.keys.min}" \
       "to be strictly older than time=#{@time}" unless @priority_queue.keys.min >= @time
   end
@@ -148,8 +148,17 @@ class Cave
     @priority_queue[state.time] ||= []
     @priority_queue[state.time] << state
 
+    record_time(state)
+  end
+
+  def record_time(state)
     @times[state.location] ||= {}
     @times[state.location][state.equip] ||= state.time
+
+    @times[state.location][state.equip] = [
+      @times[state.location][state.equip],
+      state.time,
+    ].min
   end
 
   def faster_than_current?(state)
@@ -218,6 +227,15 @@ class Cave
   def dump
     puts to_s
   end
+
+  def dump_times
+    puts 0.upto(@bounds[1]).map { |y|
+      0.upto(@bounds[0]).map { |x|
+        [x,y] == @target ? @times[[x,y]]&.[](:torch)&.to_s&.ljust(5) :
+          (@times[[x,y]]&.values&.min&.to_s&.ljust(5) || '     ')
+      }.join
+    }.join("\n")
+  end
 end
 
 def test_cave
@@ -225,12 +243,15 @@ def test_cave
 end
 
 def test
-  test_cave.solve
+  c = test_cave
+  c.solve
+  # c.dump
+  # c.dump_times
 end
 
 def solve
-  # answer: 1087 <- too high
-  # answer: 1075 <- too low
-  # answer: 1082 <- too high
-  Cave.new(4080, [14, 785]).solve
+  c = Cave.new(4080, [14, 785], [20, 800])
+  c.solve
+  # c.dump
+  # c.dump_times
 end
