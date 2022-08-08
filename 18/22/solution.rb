@@ -43,6 +43,8 @@ class Cave
       @geologic_index[[x,y]] ||= mod(y * 48271)
     elsif y == 0
       @geologic_index[[x,y]] ||= mod(x * 16807)
+    elsif [x,y] == @target
+      @geologic_index[[x,y]] ||= 0
     else
       @geologic_index[[x,y]] ||= mod(erosion_level(x, y-1) * erosion_level(x-1, y))
     end
@@ -124,8 +126,15 @@ class Cave
   end
 
   def is_improvement?(state)
-    have_not_visited?(state) ||
-      faster_than_best_visit?(state)
+    (have_not_visited?(state) || faster_than_best_visit?(state)) &&
+      better_than_current_answer?(state)
+  end
+
+  def better_than_current_answer?(state)
+    return true unless @times[@target]
+    return true unless @times[@target][:torch]
+
+    state.time < @times[@target][:torch]
   end
 
   def have_not_visited?(state)
@@ -181,8 +190,6 @@ class Cave
     }.join("\n")
   end
 
-  # todo: something isn't right, the printed board is *slightly* off
-  # but only to the right of the target and below the target
   def dump
     puts to_s
   end
@@ -197,5 +204,6 @@ def test
 end
 
 def solve
+  # answer: 1087 <- too high
   Cave.new(4080, [14, 785], [20, 800]).solve
 end
