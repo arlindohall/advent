@@ -13,6 +13,10 @@ class PathState
   def unique_key
     [x, y, equip]
   end
+
+  def to_s
+    "(#{x}, #{y}) #{time}/#{equip})"
+  end
 end
 
 class Cave
@@ -107,9 +111,13 @@ class Cave
 
   def next_states(state)
     next_locations(state)
-      .flat_map { |x, y| tools_for(type_name(x, y)).map { |name| [[x,y], name] } }
+      .flat_map { |x, y| valid_tools(x, y, state).map { |name| [[x,y], name] } }
       .map { |loc, equip| PathState.new(*loc, time_to(state, loc, equip), equip) }
       .reject { |new_state| new_state == state }
+  end
+
+  def valid_tools(x, y, state)
+    tools_for(type_name(x, y)).to_set & tools_for(type_name(*state.location)).to_set
   end
 
   def time_to(state, loc, equip)
@@ -136,8 +144,13 @@ class Cave
   def faster_than_current?(state)
     return true unless @times.include?(state.location)
     return true unless @times[state.location].include?(state.equip)
+    return false if state.time >= max_possible_time
 
     @times[state.location][state.equip] > state.time
+  end
+
+  def max_possible_time
+    @max_possible_time ||= @target.sum + @target.map { |c| c * 7}.sum
   end
 
   def next_locations(state)
@@ -203,5 +216,6 @@ end
 def solve
   # answer: 1087 <- too high
   # answer: 1075 <- too low
+  # answer: 1082 <- too high
   Cave.new(4080, [14, 785]).solve
 end
