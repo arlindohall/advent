@@ -35,29 +35,17 @@ class Cave
     puts fastest_path
   end
 
-  # Todo: allow this to extend past target by using a hash map
   def geologic_index(x, y)
-    return @geologic_index[[x,y]] if @geologic_index&.include?([x,y])
+    @geologic_index ||= {}
+    return @geologic_index[[x,y]] if @geologic_index.include?([x,y])
 
-    @geologic_index ||= init_geologic_index
-
-    @geologic_index[[x,y]] ||= mod(erosion_level(x, y-1) * erosion_level(x-1, y))
-  end
-
-  def init_geologic_index
-    x,y = @bounds
-    @geologic_index = {}
-
-    0.upto(x) { |x| @geologic_index[[x,0]] ||= mod(x * 16807) }
-    0.upto(y) { |y| @geologic_index[[0,y]] ||= mod(y * 48271) }
-
-    1.upto(y) { |y|
-      1.upto(x) { |x|
-        @geologic_index[[x,y]] ||= mod(erosion_level(x, y-1) * erosion_level(x-1, y))
-      }
-    }
-
-    @geologic_index
+    if x == 0
+      @geologic_index[[x,y]] ||= mod(y * 48271)
+    elsif y == 0
+      @geologic_index[[x,y]] ||= mod(x * 16807)
+    else
+      @geologic_index[[x,y]] ||= mod(erosion_level(x, y-1) * erosion_level(x-1, y))
+    end
   end
 
   def erosion_level(x, y)
@@ -193,13 +181,15 @@ class Cave
     }.join("\n")
   end
 
+  # todo: something isn't right, the printed board is *slightly* off
+  # but only to the right of the target and below the target
   def dump
     puts to_s
   end
 end
 
 def test_cave
-  Cave.new(510, [10, 10], [15, 15])
+  Cave.new(510, [10, 10], [20, 20])
 end
 
 def test
