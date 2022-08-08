@@ -3,21 +3,15 @@ require 'set'
 
 require_relative '../../lib/grid'
 
+PathState = Struct.new(:x, :y, :time, :equip)
+
 class PathState
-  attr_reader :time, :equip
-
-  def initialize(x, y, time, equip)
-    @x, @y = x, y
-    @time = time
-    @equip = equip
-  end
-
   def location
-    [@x, @y]
+    [x, y]
   end
 
   def unique_key
-    [@x, @y, @equip]
+    [x, y, equip]
   end
 end
 
@@ -31,8 +25,7 @@ class Cave
   end
 
   def solve
-    puts risk_level
-    puts fastest_path
+    puts [risk_level, fastest_path]
   end
 
   def geologic_index(x, y)
@@ -73,77 +66,82 @@ class Cave
   end
 
   def fastest_path
-    @times = {}
-    @queue = [PathState.new(0, 0, 0, :torch)]
+    @time = 0
+    @times = {
+      [0,0] => { torch: 0 }
+    }
+    @priority_queue = {
+      0 => [PathState.new(0, 0, 0, :torch)]
+    }
 
-    @i = 0
-    while @queue.any?
-      @i += 1
-      p [@i, @queue.size, @times.size] if @i % 10_000 == 0
-      prune_queue if @i % 100_000 == 0
-      visit_state
+    until found_target?
+      p [@time, @priority_queue.size, @priority_queue[@time]&.size] if @time % 10 == 0
+      assert_priority_queue
+      visit_priority
+      @time += 1
     end
 
     @times[@target][:torch]
   end
 
-  def prune_queue
-    @queue = @queue.filter { |state| is_improvement?(state) }
+  def found_target?
+    @times.include?(@target) && @times[@target].include?(:torch)
   end
 
-  def visit_state
-    @state = @queue.shift
-    return if !is_improvement?(@state)
-
-    @times[@state.location] ||= {}
-    @times[@state.location][@state.equip] = [
-      @state.time,
-      @times[@state.location][@state.equip],
-    ].compact
-     .min
-
-    possible_moves.each { |move|
-      @queue << move
-    }
+  def assert_priority_queue
+    raise "Expected queue=#{@priority_queue.keys.min}" \
+      "to be strictly older than time=#{@time}" unless @priority_queue.keys.min >= @time
   end
 
-  def possible_moves
-    neighbors(*@state.location).flat_map { |neighbor|
-      possible_tools(neighbor).map { |tool|
-        PathState.new(*neighbor, @state.time + time_to(neighbor, tool), tool)
-      }
-    }.filter { |state|
-      is_improvement?(state)
-    }
+  def visit_priority
+    queue_by_next_time
+      .uniq
+      .flat_map { |state| next_states(state) }
+      .uniq
+      .each { |state| visit(state) }
   end
 
-  def possible_tools(location)
-    tools_for(type_name(*location)).to_set & tools_for(type_name(*@state.location)).to_set
+  def queue_by_next_time
+    @priority_queue.delete(@time) || []
   end
 
-  def time_to(location, tool)
-    tool == @state.equip ? 1 : 8
+  def next_states(state)
+    next_locations(state)
+      .flat_map { |x, y| tools_for(type_name(x, y)).map { |name| [[x,y], name] } }
+      .map { |loc, equip| PathState.new(*loc, time_to(state, loc, equip), equip) }
+      .reject { |new_state| new_state == state }
   end
 
-  def is_improvement?(state)
-    (have_not_visited?(state) || faster_than_best_visit?(state)) &&
-      better_than_current_answer?(state)
+  def time_to(state, loc, equip)
+    state.time + travel_time(state, loc) + equip_time(state, equip)
   end
 
-  def better_than_current_answer?(state)
-    return true unless @times[@target]
-    return true unless @times[@target][:torch]
-
-    state.time < @times[@target][:torch]
+  def travel_time(state, loc)
+    state.location == loc ? 0 : 1
   end
 
-  def have_not_visited?(state)
-    !@times.include?(state.location) ||
-      !@times[state.location].include?(state.equip)
+  def equip_time(state, equip)
+    state.equip == equip ? 0 : 7
   end
 
-  def faster_than_best_visit?(state)
+  def visit(state)
+    return unless faster_than_current?(state)
+    @priority_queue[state.time] ||= []
+    @priority_queue[state.time] << state
+
+    @times[state.location] ||= {}
+    @times[state.location][state.equip] ||= state.time
+  end
+
+  def faster_than_current?(state)
+    return true unless @times.include?(state.location)
+    return true unless @times[state.location].include?(state.equip)
+
     @times[state.location][state.equip] > state.time
+  end
+
+  def next_locations(state)
+    neighbors(*state.location) + [state.location]
   end
 
   def tools_for(type)
@@ -159,8 +157,7 @@ class Cave
 
   # for including Coordinates
   def in_bounds?(x, y)
-    xbound, ybound = @bounds
-    y >= 0 && x >= 0 && x <= xbound && y <= ybound
+    y >= 0 && x >= 0
   end
 
   def type_name(x, y)
@@ -196,7 +193,7 @@ class Cave
 end
 
 def test_cave
-  Cave.new(510, [10, 10], [20, 20])
+  Cave.new(510, [10, 10], [15, 15])
 end
 
 def test
@@ -205,5 +202,6 @@ end
 
 def solve
   # answer: 1087 <- too high
-  Cave.new(4080, [14, 785], [20, 800]).solve
+  # answer: 1075 <- too low
+  Cave.new(4080, [14, 785]).solve
 end
