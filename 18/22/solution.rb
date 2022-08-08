@@ -1,4 +1,6 @@
 
+require 'set'
+
 require_relative '../../lib/grid'
 
 class PathState
@@ -29,13 +31,20 @@ class Cave
   end
 
   def solve
-    [risk_level, fastest_path]
+    puts risk_level
+    puts fastest_path
   end
 
   # Todo: allow this to extend past target by using a hash map
   def geologic_index(x, y)
     return @geologic_index[[x,y]] if @geologic_index&.include?([x,y])
 
+    @geologic_index ||= init_geologic_index
+
+    @geologic_index[[x,y]] ||= mod(erosion_level(x, y-1) * erosion_level(x-1, y))
+  end
+
+  def init_geologic_index
     x,y = @bounds
     @geologic_index = {}
 
@@ -48,7 +57,7 @@ class Cave
       }
     }
 
-    @geologic_index[[x,y]]
+    @geologic_index
   end
 
   def erosion_level(x, y)
@@ -74,57 +83,70 @@ class Cave
   end
 
   def fastest_path
+    @times = {}
     @queue = [PathState.new(0, 0, 0, :torch)]
-    # TODO: Hash times by location + tool, because those are two different states
-    @times = Hash.new(Float::INFINITY)
 
     @i = 0
     while @queue.any?
       @i += 1
-      p [@i, @queue.size, @state] if @i % 10_000 == 0
-      # p [@queue.map(&:time).uniq.sort] if @i % 10_000 == 0
-      # p [@queue.map(&:location).map(&:first).minmax, @queue.map(&:location).map(&:last).minmax] if @i % 10_000 == 0
-      add_possible_paths
+      p [@i, @queue.size, @times.size] if @i % 10_000 == 0
+      prune_queue if @i % 100_000 == 0
+      visit_state
     end
 
-    @times.filter { |key, time| key[0..1] == @target }
-      .values
-      .min
+    @times[@target][:torch]
   end
 
-  def add_possible_paths
+  def prune_queue
+    @queue = @queue.filter { |state| is_improvement?(state) }
+  end
+
+  def visit_state
     @state = @queue.shift
+    return if !is_improvement?(@state)
 
-    # Quit for this one if it's longer than the current solution or the current
-    # best time to this spot
-    return if @state.time >= @times[@state.unique_key] || @state.time >= @times[@target]
-    @times[@state.unique_key] = @state.time
-    @times[@state.location] = @state.time if @state.location == @target
+    @times[@state.location] ||= {}
+    @times[@state.location][@state.equip] = [
+      @state.time,
+      @times[@state.location][@state.equip],
+    ].compact
+     .min
 
-    # TODO: Prune here instead of after, only add to queue if smaller than current largest
-    options.filter { |state| state.time < @times[state.unique_key] }
-      .each { |option| @queue << option }
-  end
-
-  def options
-    neighbors(*@state.location).flat_map { |x,y|
-      destination_type = type_name(x, y)
-      tool = @state.equip
-
-      possible_steps(@state.time, tool, destination_type, [x,y])
+    possible_moves.each { |move|
+      @queue << move
     }
   end
 
-  def possible_steps(time_so_far, current_tool, destination_type, location)
-    tool_combinations(current_tool, destination_type).map { |new_tool, equip_time|
-      PathState.new(*location, equip_time + time_so_far, new_tool)
+  def possible_moves
+    neighbors(*@state.location).flat_map { |neighbor|
+      possible_tools(neighbor).map { |tool|
+        PathState.new(*neighbor, @state.time + time_to(neighbor, tool), tool)
+      }
+    }.filter { |state|
+      is_improvement?(state)
     }
   end
 
-  def tool_combinations(current_tool, destination_type)
-    tools_for(destination_type).map { |tool|
-      [tool, tool == current_tool ? 1 : 8]
-    }
+  def possible_tools(location)
+    tools_for(type_name(*location)).to_set & tools_for(type_name(*@state.location)).to_set
+  end
+
+  def time_to(location, tool)
+    tool == @state.equip ? 1 : 8
+  end
+
+  def is_improvement?(state)
+    have_not_visited?(state) ||
+      faster_than_best_visit?(state)
+  end
+
+  def have_not_visited?(state)
+    !@times.include?(state.location) ||
+      !@times[state.location].include?(state.equip)
+  end
+
+  def faster_than_best_visit?(state)
+    @times[state.location][state.equip] > state.time
   end
 
   def tools_for(type)
@@ -140,7 +162,8 @@ class Cave
 
   # for including Coordinates
   def in_bounds?(x, y)
-    y >= 0 && x >= 0
+    xbound, ybound = @bounds
+    y >= 0 && x >= 0 && x <= xbound && y <= ybound
   end
 
   def type_name(x, y)
@@ -175,6 +198,14 @@ class Cave
   end
 end
 
+def test_cave
+  Cave.new(510, [10, 10], [15, 15])
+end
+
+def test
+  test_cave.solve
+end
+
 def solve
-  puts Cave.new(4080, [14, 785]).solve
+  Cave.new(4080, [14, 785], [20, 800]).solve
 end
