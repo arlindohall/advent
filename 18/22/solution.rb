@@ -79,13 +79,22 @@ class Cave
     }
 
     until found_target?
-      p [@time, @priority_queue.size, @priority_queue[@time]&.size] if @time % 10 == 0
       assert_priority_queue
       visit_priority
       @time += 1
     end
 
+    drain_queue
+
     @times[@target][:torch]
+  end
+
+  def drain_queue
+    until @priority_queue.empty?
+      assert_priority_queue
+      visit_priority
+      @time += 1
+    end
   end
 
   def found_target?
@@ -93,6 +102,7 @@ class Cave
   end
 
   def assert_priority_queue
+    p [@time, @priority_queue.size, @priority_queue[@time]&.size] #if @time % 10 == 0
     raise "Expected queue=#{@priority_queue.keys.min}" \
       "to be strictly older than time=#{@time}" unless @priority_queue.keys.min >= @time
   end
@@ -134,6 +144,7 @@ class Cave
 
   def visit(state)
     return unless faster_than_current?(state)
+    return if slower_than_answer?(state)
     @priority_queue[state.time] ||= []
     @priority_queue[state.time] << state
 
@@ -144,9 +155,13 @@ class Cave
   def faster_than_current?(state)
     return true unless @times.include?(state.location)
     return true unless @times[state.location].include?(state.equip)
-    return false if state.time >= max_possible_time
 
     @times[state.location][state.equip] > state.time
+  end
+
+  def slower_than_answer?(state)
+    return false unless found_target?
+    state.time > @times[@target][:torch]
   end
 
   def max_possible_time
