@@ -29,6 +29,7 @@ class Teleporter
   # 132107390 <- still too high
   # 131840239 <- still too high
   # 131913241 <- bigger than the last answer but much quicker
+  # 131798693 <- smallest yet, is it close?
   def shortest_distance
     best_location.distance(Nanobot::ORIGIN)
   end
@@ -94,12 +95,18 @@ class Teleporter
   end
 
   def initialize_distance
-    @distance = [
+    # @distance = [
+    #   @nanobots.map(&:x).map(&:abs).max,
+    #   @nanobots.map(&:y).map(&:abs).max,
+    #   @nanobots.map(&:z).map(&:abs).max,
+    # ].map { |i| i / 2 }
+    # @distance = [37776933, 35152825, 60854683]
+    d = [
       @nanobots.map(&:x).map(&:abs).max,
       @nanobots.map(&:y).map(&:abs).max,
       @nanobots.map(&:z).map(&:abs).max,
-    ].map { |i| i / 2 }
-    # @distance = [37776933, 35152825, 60854683]
+    ].max
+    @distance = 3.times.map { d/2 }
 
     self
   end
