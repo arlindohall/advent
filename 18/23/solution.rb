@@ -26,42 +26,115 @@ class Teleporter
     }
   end
 
-  # 136326357 <- too big, this was a guess that there was a pattern in the
-  # data such that the location was actually on a nanobot
-  #
-  # This is really an optimization problem over a search space, some kind
-  # of binary or radix search is the best bet, but I don't know what
-  # algorithm to use...
+  # 132107390 <- still too high
+  # 131840239 <- still too high
   def shortest_distance
     best_location.distance(Nanobot::ORIGIN)
   end
 
   def best_location
-    friendliest_nanobot
+    initialize_search
+    2.times { adjust_towards_maximum }
+    2.times { adjust_towards_origin }
+    print "found: " ; debug
+
+    @cursor
   end
 
-  def friendliest_nanobot
-    @nanobots.max_by { |nanobot|
-      @nanobots.count { |other| other.in_range(nanobot) }
-    }
+  def debug
+    p [@cursor, @distance, in_range(@cursor), @cursor.distance(Nanobot::ORIGIN)]
   end
 
-  def step(axis)
-    @last_centroid, @last_distance = @centroid, @distance
-    val = @centroid.send(axis)
+  def adjust_towards_origin
+    initialize_distance
 
-    if val > 0
-      @centroid = @centroid.dup.tap { |c| c.send("#{axis}=", val - 1) }
-    else
-      @centroid = @centroid.dup.tap { |c| c.send("#{axis}=", val + 1) }
+    until @distance.all? { |i| i == 0 }
+      inch_towards_origin
     end
-
-    @distance = in_range
   end
 
-  def in_range
-    @nanobots.count { |nanobot|
-      nanobot.in_range(@centroid)
+  def inch_towards_origin
+    print "inching closer: " ; debug
+
+    @cursor = @cursor.moves(@distance)
+      .filter { |point| point.distance(Nanobot::ORIGIN) <= @cursor.distance(Nanobot::ORIGIN) }
+      .sort_by { |point| point.distance(Nanobot::ORIGIN) }
+      .sort_by { |point| -in_range(point) }
+      .first
+
+    reduce_distance
+  end
+
+  def same_neighbors?(dimension, loc, sign)
+    c = @cursor.dup
+    c[dimension] = loc + (sign * @distance[dimension])
+
+    in_range(c) >= in_range(@cursor)
+  end
+
+  def adjust_towards_maximum
+    initialize_distance
+    until @distance.all? { |i| i == 0 }
+      update
+    end
+  end
+
+  def initialize_search
+    initialize_cursor
+    initialize_distance
+  end
+
+  def update
+    print "updating: " ; debug
+    best_move
+    reduce_distance
+
+    self
+  end
+
+  def initialize_distance
+    @distance = [
+      @nanobots.map(&:x).map(&:abs).max,
+      @nanobots.map(&:y).map(&:abs).max,
+      @nanobots.map(&:z).map(&:abs).max,
+    ].map { |i| i / 2 }
+    # @distance = [37776933, 35152825, 60854683]
+
+    self
+  end
+
+  def initialize_cursor
+    # @cursor = Nanobot.new(0,0,0,0)
+    initialize_distance
+    x, y, z = @distance
+    step_size = 10_000_000
+    @i = 0
+    @cursor = (-x).step(x, step_size).flat_map { |x|
+      @i += 1
+      p x if @i % 100 == 0
+      (-y).step(y, step_size).flat_map { |y|
+        (-z).step(z, step_size).map { |z|
+          Nanobot[x, y, z, 0]
+        }
+      }
+    }
+
+    p @cursor.size
+    @cursor = @cursor.max_by { |point| @i += 1 ; p point if @i % 100 == 0 ; in_range(point) }
+  end
+
+  def reduce_distance
+    @distance = @distance.map { |i| i / 2 }
+  end
+
+  def best_move
+    @cursor = @cursor.moves(@distance)
+      .max_by { |point| in_range(point) }
+  end
+
+  def in_range(point)
+    @nanobots.count { |other|
+      other.in_range(point)
     }
   end
 end
@@ -81,6 +154,14 @@ class Nanobot
       (y - other.y),
       (z - other.z),
     ].map(&:abs).sum
+  end
+
+  def moves(distance)
+    dx,dy,dz = distance
+    [0, 0, 0, 1, 1, 1, -1, -1, -1].combination(3)
+      .map { |d1, d2, d3| [d1 * dx, d2 * dy, d3 * dz] }
+      .map { |dx, dy, dz| [x + dx, y + dy, z + dz] }
+      .map { |pt| Nanobot[*pt] }
   end
 end
 
