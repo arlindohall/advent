@@ -32,6 +32,7 @@ class Teleporter
   # 131798693 <- smallest yet, is it close?
   # 131654430 <- wat
   # 131339263 <- with 3_000_000 step size instead of 10 and searching linearly first
+  # 131672104 <- bigger wtf, and I can't remember what all the neighbor counts are
   def shortest_distance
     best_location.distance(Nanobot::ORIGIN)
   end
@@ -117,7 +118,7 @@ class Teleporter
     # @cursor = Nanobot.new(0,0,0,0)
     initialize_distance
     x, y, z = @distance
-    step_size = 3_000_000
+    step_size = 2_000_000
     @i = 0
     @cursor = (-x).step(x, step_size).flat_map { |x|
       @i += 1
