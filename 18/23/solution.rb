@@ -30,14 +30,16 @@ class Teleporter
   # 131840239 <- still too high
   # 131913241 <- bigger than the last answer but much quicker
   # 131798693 <- smallest yet, is it close?
+  # 131654430 <- wat
+  # 131339263 <- with 3_000_000 step size instead of 10 and searching linearly first
   def shortest_distance
     best_location.distance(Nanobot::ORIGIN)
   end
 
   def best_location
     initialize_search
-    2.times { adjust_towards_maximum }
-    2.times { adjust_towards_origin }
+    5.times { adjust_towards_maximum }
+    5.times { adjust_towards_origin }
     print "found: " ; debug
 
     @cursor
@@ -112,27 +114,27 @@ class Teleporter
   end
 
   def initialize_cursor
-    @cursor = Nanobot.new(0,0,0,0)
-    # initialize_distance
-    # x, y, z = @distance
-    # step_size = 10_000_000
-    # @i = 0
-    # @cursor = (-x).step(x, step_size).flat_map { |x|
-    #   @i += 1
-    #   p x if @i % 100 == 0
-    #   (-y).step(y, step_size).flat_map { |y|
-    #     (-z).step(z, step_size).map { |z|
-    #       Nanobot[x, y, z, 0]
-    #     }
-    #   }
-    # }
+    # @cursor = Nanobot.new(0,0,0,0)
+    initialize_distance
+    x, y, z = @distance
+    step_size = 3_000_000
+    @i = 0
+    @cursor = (-x).step(x, step_size).flat_map { |x|
+      @i += 1
+      p x if @i % 100 == 0
+      (-y).step(y, step_size).flat_map { |y|
+        (-z).step(z, step_size).map { |z|
+          Nanobot[x, y, z, 0]
+        }
+      }
+    }
 
-    # p @cursor.size
-    # @cursor = @cursor.max_by { |point| @i += 1 ; p point if @i % 100 == 0 ; in_range(point) }
+    p @cursor.size
+    @cursor = @cursor.max_by { |point| @i += 1 ; p point if @i % 100 == 0 ; in_range(point) }
   end
 
   def reduce_distance
-    @distance = @distance.map { |i| (i * 0.9).floor }
+    @distance = @distance.map { |i| (i * 0.99).floor }
   end
 
   def best_move
