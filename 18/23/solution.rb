@@ -17,136 +17,144 @@ class Teleporter
   end
 
   def strongest
-    in_radius(@nanobots.max_by(&:r))
+    in_radius_of_bot(@nanobots.max_by(&:r))
   end
 
-  def in_radius(nanobot)
+  def in_radius_of_bot(nanobot)
     @nanobots.count { |other|
       nanobot.in_range(other)
     }
   end
 
-  # 132107390 <- still too high
-  # 131840239 <- still too high
-  # 131913241 <- bigger than the last answer but much quicker
-  # 131798693 <- smallest yet, is it close?
-  # 131654430 <- wat
-  # 131339263 <- with 3_000_000 step size instead of 10 and searching linearly first
-  # 131672104 <- bigger wtf, and I can't remember what all the neighbor counts are
-  def shortest_distance
-    best_location.distance(Nanobot::ORIGIN)
+  def point_in_radius(point)
+    @nanobots.count { |bot|
+      bot.in_range(point)
+    }
   end
 
-  def best_location
-    initialize_search
-    5.times { adjust_towards_maximum }
-    5.times { adjust_towards_origin }
-    print "found: " ; debug
+  def shortest_distance
+    best_box.all_points
+      .group_by { |point| point_in_radius(point) }
+      .max_by { |k,v| k }
+      .last # values with minimum radius
+      .min_by { |point| point.distance(Nanobot::ORIGIN) }
+      .tap { |point| p point }
+      .distance(Nanobot::ORIGIN)
+  end
 
-    @cursor
+  def best_box
+    initialize_distance
+    initialize_box
+
+    until cannot_subdivide?
+      debug
+      @box = best_partition
+    end
+
+    @box
   end
 
   def debug
-    p [@cursor, @distance, in_range(@cursor), @cursor.distance(Nanobot::ORIGIN)]
+    p [@box]
   end
 
-  def adjust_towards_origin
-    initialize_distance
-
-    until @distance.all? { |i| i == 0 }
-      inch_towards_origin
-    end
+  def cannot_subdivide?
+    partitions.include?(@box)
   end
 
-  def inch_towards_origin
-    print "inching closer: " ; debug
-
-    @cursor = @cursor.moves(@distance)
-      .filter { |point| point.distance(Nanobot::ORIGIN) <= @cursor.distance(Nanobot::ORIGIN) }
-      .sort_by { |point| point.distance(Nanobot::ORIGIN) }
-      .sort_by { |point| -in_range(point) }
-      .first
-
-    reduce_distance
+  def partitions
+    @box.partition
   end
 
-  def same_neighbors?(dimension, loc, sign)
-    c = @cursor.dup
-    c[dimension] = loc + (sign * @distance[dimension])
-
-    in_range(c) >= in_range(@cursor)
-  end
-
-  def adjust_towards_maximum
-    initialize_distance
-    until @distance.all? { |i| i == 0 }
-      update
-    end
-  end
-
-  def initialize_search
-    initialize_cursor
-    initialize_distance
-  end
-
-  def update
-    print "updating: " ; debug
-    best_move
-    reduce_distance
-
-    self
+  def best_partition
+    partitions.group_by { |box| in_box(box) }
+      .max_by { |k,v| k }
+      .last
+      .min_by { |box| box.distance(Nanobot::ORIGIN) }
   end
 
   def initialize_distance
-    # @distance = [
-    #   @nanobots.map(&:x).map(&:abs).max,
-    #   @nanobots.map(&:y).map(&:abs).max,
-    #   @nanobots.map(&:z).map(&:abs).max,
-    # ].map { |i| i / 2 }
-    # @distance = [37776933, 35152825, 60854683]
-    d = [
+    @distance = [
       @nanobots.map(&:x).map(&:abs).max,
       @nanobots.map(&:y).map(&:abs).max,
       @nanobots.map(&:z).map(&:abs).max,
-    ].max
-    @distance = 3.times.map { d/2 }
-
-    self
+    ]
   end
 
-  def initialize_cursor
-    # @cursor = Nanobot.new(0,0,0,0)
-    initialize_distance
-    x, y, z = @distance
-    step_size = 2_000_000
-    @i = 0
-    @cursor = (-x).step(x, step_size).flat_map { |x|
-      @i += 1
-      p x if @i % 100 == 0
-      (-y).step(y, step_size).flat_map { |y|
-        (-z).step(z, step_size).map { |z|
-          Nanobot[x, y, z, 0]
+  def initialize_box
+    corner = Nanobot.new(*@distance)
+    @box = Box.from_corners(corner, corner.invert)
+  end
+
+  def in_box(box)
+    @nanobots.count { |nanobot|
+      box.can_reach(nanobot)
+    }
+  end
+end
+
+Box = Struct.new(:corners)
+class Box
+  def center
+    @center ||= Nanobot.new(
+      corners.map(&:x).sum / corners.size,
+      corners.map(&:y).sum / corners.size,
+      corners.map(&:z).sum / corners.size,
+    )
+  end
+
+  def self.from_corners(first, second)
+    x1, y1, z1 = first.values
+    x2, y2, z2 = second.values
+
+    new([
+      Nanobot.new(x1, y1, z1),
+      Nanobot.new(x1, y1, z2),
+      Nanobot.new(x1, y2, z1),
+      Nanobot.new(x1, y2, z2),
+      Nanobot.new(x2, y1, z1),
+      Nanobot.new(x2, y1, z2),
+      Nanobot.new(x2, y2, z1),
+      Nanobot.new(x2, y2, z2),
+    ])
+  end
+
+  def all_points
+    xmin, xmax = corners.map(&:x).minmax
+    ymin, ymax = corners.map(&:y).minmax
+    zmin, zmax = corners.map(&:z).minmax
+
+    xmin.upto(xmax).flat_map { |x|
+      ymin.upto(ymax).flat_map { |y|
+        zmin.upto(zmax).map { |z|
+          Nanobot.new(x, y, z, 0)
         }
       }
     }
-
-    p @cursor.size
-    @cursor = @cursor.max_by { |point| @i += 1 ; p point if @i % 100 == 0 ; in_range(point) }
   end
 
-  def reduce_distance
-    @distance = @distance.map { |i| (i * 0.99).floor }
-  end
-
-  def best_move
-    @cursor = @cursor.moves(@distance)
-      .max_by { |point| in_range(point) }
-  end
-
-  def in_range(point)
-    @nanobots.count { |other|
-      other.in_range(point)
+  def partition
+    corners.map { |corner|
+      self.class.from_corners(center, corner)
     }
+  end
+
+  def can_reach(nanobot)
+    contains?(nanobot) || corners.any?{ |point| nanobot.in_range(point) }
+  end
+
+  def contains?(nanobot)
+    xmin, xmax = corners.map(&:x).minmax
+    ymin, ymax = corners.map(&:y).minmax
+    zmin, zmax = corners.map(&:z).minmax
+
+    nanobot.x.between?(xmin, xmax) &&
+      nanobot.y.between?(ymin, ymax) &&
+      nanobot.z.between?(zmin, zmax)
+  end
+
+  def distance(point)
+    corners.map { |c| c.distance(point) }.min
   end
 end
 
@@ -167,12 +175,8 @@ class Nanobot
     ].map(&:abs).sum
   end
 
-  def moves(distance)
-    dx,dy,dz = distance
-    [0, 0, 0, 1, 1, 1, -1, -1, -1].combination(3)
-      .map { |d1, d2, d3| [d1 * dx, d2 * dy, d3 * dz] }
-      .map { |dx, dy, dz| [x + dx, y + dy, z + dz] }
-      .map { |pt| Nanobot[*pt] }
+  def invert
+    Nanobot[-x, -y, -z, r]
   end
 end
 
