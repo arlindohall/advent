@@ -140,21 +140,36 @@ class Box
   end
 
   def can_reach(nanobot)
-    contains?(nanobot) || corners.any?{ |point| nanobot.in_range(point) }
+    contains?(nanobot) ||
+      can_reach_corner(nanobot) ||
+      can_reach_side(nanobot)
+  end
+
+  def can_reach_corner(nanobot)
+    corners.any?{ |point| nanobot.in_range(point) }
+  end
+
+  def can_reach_side(nanobot)
+    [:x, :y, :z].filter { |axis| !in_axis(nanobot, axis) }
+      .map { |axis| distance_on_axis(nanobot, axis) }
+      .sum <= nanobot.r
+  end
+
+  def in_axis(nanobot, axis)
+    min, max = corners.map(&axis).minmax
+    nanobot.send(axis).between?(min, max)
   end
 
   def contains?(nanobot)
-    xmin, xmax = corners.map(&:x).minmax
-    ymin, ymax = corners.map(&:y).minmax
-    zmin, zmax = corners.map(&:z).minmax
-
-    nanobot.x.between?(xmin, xmax) &&
-      nanobot.y.between?(ymin, ymax) &&
-      nanobot.z.between?(zmin, zmax)
+    [:x, :y, :z].all? { |axis| in_axis(nanobot, axis) }
   end
 
   def distance(point)
     corners.map { |c| c.distance(point) }.min
+  end
+
+  def distance_on_axis(point, axis)
+    corners.map { |c| c.distance_on_axis(point, axis) }.min
   end
 end
 
@@ -173,6 +188,10 @@ class Nanobot
       (y - other.y),
       (z - other.z),
     ].map(&:abs).sum
+  end
+
+  def distance_on_axis(other, axis)
+    (self.send(axis) - other.send(axis)).abs
   end
 
   def invert
