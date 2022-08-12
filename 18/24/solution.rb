@@ -17,7 +17,7 @@ class Group
     units * attack
   end
 
-  def select_target(targets, output)
+  def select_target(targets)
     return @target = nil if targets.empty?
 
     # todo tie breaker
@@ -25,16 +25,15 @@ class Group
       [-damage_to(target), -target.effective_power, -target.initiative]
     }
 
-    targets.each { |t|
-      output.puts("#{type == :infection ? "Infection" : "Immune System"} group #{index + 1} would deal defending group #{t.index + 1} #{damage_to(t)} damage")
-    }
-    
     @target = @target.first
     targets.delete(@target)
   end
 
   def damage_to(target = nil)
     target ||= @target
+
+    return 0 if target.nil?
+
     if target.weaknesses.include?(attack_type)
       effective_power * 2
     elsif target.immunities.include?(attack_type)
@@ -45,33 +44,95 @@ class Group
   end
 
   def perform_attack
-    @target.units -= damage_to / @target.hp
+    @target.units -= residual
+  end
+
+  def residual
+    damage_to / (@target&.hp || 1)
   end
 end
 
 class Battle
-  def initialize(immune_system, infection, output)
+  def initialize(immune_system, infection, boost)
     @immune_system = immune_system
     @infection = infection
-    @output = output
+    @boost = boost
+  end
+
+  def deep_clone
+    self.class.new(
+      @immune_system.map(&:clone),
+      @infection.map(&:clone),
+      @boost,
+    )
+  end
+
+  def boost(b)
+    @boost = b
+    self
+  end
+
+  def solve
+    [deep_clone.battle, deep_clone.save_reindeer]
+  end
+
+  def save_reindeer
+    @boost = 1
+
+    until deep_clone.reindeer_win?
+      @boost += 1
+      puts "Trying boost #{@boost}"
+    end
+
+    remaining_reindeer
+  end
+
+  def reindeer_win?
+    remaining_reindeer > 0
+  end
+
+  def remaining_reindeer
+    boosted = deep_clone
+    boosted.battle
+    boosted.immune_system_units
+  end
+
+  def debug
+    @immune_system.map(&:attack) + @infection.map(&:attack)
+  end
+
+  def immune_system_units
+    @immune_system.map(&:units).sum
   end
 
   def battle
+    @immune_system.each { |group| group.attack += @boost }
     until defeat?
       fight
     end
-    status
 
     [@immune_system, @infection].flat_map { |groups| groups.map(&:units) }.sum
   end
 
+  # 2678 -> too low, when I zero out infection on deadlock
+  # 3958 -> too high, when I zero out both on deadlock
+  # Both approaches give right answer for example
+  def destroy_if_deadlocked
+    # If we're deadlocked just remove everythig because at least then
+    # we'll end the loop and the caller will think there's no reindeer left
+    if deadlocked?
+      @immune_system = []
+      @infection = []
+    end
+  end
+
+  def deadlocked?
+    all_groups.all? { |group| group.residual == 0 }
+  end
+
   def fight
-    status
-    @output.puts
-
     select_targets
-    @output.puts
-
+    destroy_if_deadlocked
     attack
   end
 
@@ -81,10 +142,10 @@ class Battle
     is_targets = @infection.sort_by(&:index)
 
     inf_groups.each_with_index { |group|
-      group.select_target(inf_targets, @output)
+      group.select_target(inf_targets)
     }
     is_groups.each_with_index { |group|
-      group.select_target(is_targets, @output)
+      group.select_target(is_targets)
     }
   end
 
@@ -99,23 +160,11 @@ class Battle
     return unless all_groups.include?(group)
     return unless group.target
 
-    print_attack(group)
     group.perform_attack
 
     return if group.target.units > 0
 
     defeat(group.target)
-  end
-
-  def print_attack(group)
-    killed = [group.damage_to / group.target.hp, group.target.units].min
-    @output.puts(
-      (group.type == :infection ? "Infection" : "Immune System") +
-      " group #{group.index + 1} attacks defending " + 
-      "group #{group.target.index + 1}, killing " +
-      "#{killed} unit" +
-      (killed == 1 ? "" : "s")
-    )
   end
 
   def defeat(target)
@@ -142,37 +191,16 @@ class Battle
     }
   end
 
-  def status
-    @output.puts("Immune System:")
-
-    if @immune_system.empty?
-      @output.puts("No groups remain.")
-    end
-
-    @immune_system.each_with_index { |group|
-      @output.puts("Group #{group.index + 1} contains #{group.units} units")
-    }
-
-    if @infection.empty?
-      @output.puts("No groups remain.")
-    end
-
-    @output.puts("Infection:")
-    @infection.each_with_index { |group|
-      @output.puts("Group #{group.index + 1} contains #{group.units} units")
-    }
-  end
-
   def defeat?
     @immune_system.empty? || @infection.empty?
   end
 
-  def self.parse(text, output = $stdout)
+  def self.parse(text)
     immune, infection = text.split("\n\n")
       .map { |block| [block.split("\n").first[...-1].downcase.to_sym, block.split("\n").drop(1)] }
       .map { |type, block| block.each_with_index.map { |line, idx| parse_group(type, line, idx) }}
     
-    new(immune, infection, output)
+    new(immune, infection, 0)
   end
 
   def self.parse_group(type, text, index)
@@ -205,18 +233,16 @@ class Battle
 end
 
 def test
-  os_stream = File.open("mine.txt", 'w')
-  answer = Battle.parse(@example_input, os_stream).battle
-  os_stream.close
+  # puts Battle.parse(@example_input).battle
+  puts Battle.parse(@example_input).solve
+end
 
-  File.write('theirs.txt', @example_output)
-
-  puts File.read('mine.txt') == @example_output ? "PASS" : "FAIL"
-  puts answer
+def test_boost
+  puts Battle.parse(@example_input).boost(1570).battle
 end
 
 def solve
-  puts Battle.parse(@input).battle
+  puts Battle.parse(@input).solve
 end
 
 @example_input = <<~input
@@ -254,113 +280,3 @@ Infection:
 689 units each with 42315 hit points (weak to cold, slashing) with an attack that does 116 fire damage at initiative 7
 2649 units each with 37977 hit points (weak to radiation) with an attack that does 24 cold damage at initiative 3
 input
-
-@example_output = <<~output
-Immune System:
-Group 1 contains 17 units
-Group 2 contains 989 units
-Infection:
-Group 1 contains 801 units
-Group 2 contains 4485 units
-
-Infection group 1 would deal defending group 1 185832 damage
-Infection group 1 would deal defending group 2 185832 damage
-Infection group 2 would deal defending group 2 107640 damage
-Immune System group 1 would deal defending group 1 76619 damage
-Immune System group 1 would deal defending group 2 153238 damage
-Immune System group 2 would deal defending group 1 24725 damage
-
-Infection group 2 attacks defending group 2, killing 84 units
-Immune System group 2 attacks defending group 1, killing 4 units
-Immune System group 1 attacks defending group 2, killing 51 units
-Infection group 1 attacks defending group 1, killing 17 units
-Immune System:
-Group 2 contains 905 units
-Infection:
-Group 1 contains 797 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 184904 damage
-Immune System group 2 would deal defending group 1 22625 damage
-Immune System group 2 would deal defending group 2 22625 damage
-
-Immune System group 2 attacks defending group 1, killing 4 units
-Infection group 1 attacks defending group 2, killing 144 units
-Immune System:
-Group 2 contains 761 units
-Infection:
-Group 1 contains 793 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 183976 damage
-Immune System group 2 would deal defending group 1 19025 damage
-Immune System group 2 would deal defending group 2 19025 damage
-
-Immune System group 2 attacks defending group 1, killing 4 units
-Infection group 1 attacks defending group 2, killing 143 units
-Immune System:
-Group 2 contains 618 units
-Infection:
-Group 1 contains 789 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 183048 damage
-Immune System group 2 would deal defending group 1 15450 damage
-Immune System group 2 would deal defending group 2 15450 damage
-
-Immune System group 2 attacks defending group 1, killing 3 units
-Infection group 1 attacks defending group 2, killing 143 units
-Immune System:
-Group 2 contains 475 units
-Infection:
-Group 1 contains 786 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 182352 damage
-Immune System group 2 would deal defending group 1 11875 damage
-Immune System group 2 would deal defending group 2 11875 damage
-
-Immune System group 2 attacks defending group 1, killing 2 units
-Infection group 1 attacks defending group 2, killing 142 units
-Immune System:
-Group 2 contains 333 units
-Infection:
-Group 1 contains 784 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 181888 damage
-Immune System group 2 would deal defending group 1 8325 damage
-Immune System group 2 would deal defending group 2 8325 damage
-
-Immune System group 2 attacks defending group 1, killing 1 unit
-Infection group 1 attacks defending group 2, killing 142 units
-Immune System:
-Group 2 contains 191 units
-Infection:
-Group 1 contains 783 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 181656 damage
-Immune System group 2 would deal defending group 1 4775 damage
-Immune System group 2 would deal defending group 2 4775 damage
-
-Immune System group 2 attacks defending group 1, killing 1 unit
-Infection group 1 attacks defending group 2, killing 142 units
-Immune System:
-Group 2 contains 49 units
-Infection:
-Group 1 contains 782 units
-Group 2 contains 4434 units
-
-Infection group 1 would deal defending group 2 181424 damage
-Immune System group 2 would deal defending group 1 1225 damage
-Immune System group 2 would deal defending group 2 1225 damage
-
-Immune System group 2 attacks defending group 1, killing 0 units
-Infection group 1 attacks defending group 2, killing 49 units
-Immune System:
-No groups remain.
-Infection:
-Group 1 contains 782 units
-Group 2 contains 4434 units
-output
