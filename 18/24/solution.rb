@@ -1,4 +1,6 @@
 
+# 2678 too low
+# 3958 too high
 $debug = false
 
 Group = Struct.new(
@@ -48,6 +50,7 @@ class Group
   end
 
   def perform_attack
+    p [@target.units, residual, damage_to]
     @target.units -= residual
   end
 
@@ -217,7 +220,7 @@ class Battle
     return $debug unless $debug
     return unless all_groups.include?(group) && all_groups.include?(group.target)
 
-    killed = [group.damage_to / group.target.hp, group.target.units].min
+    killed = [group.residual, group.target.units].min
     puts(
       (group.type == :infection ? "Infection" : "Immune System") +
       " group #{group.index + 1} attacks defending " +
