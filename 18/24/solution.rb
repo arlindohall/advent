@@ -25,9 +25,12 @@ class Group
     return @target = nil if targets.empty?
 
     # todo tie breaker
-    @target = targets.sort_by { |target|
-      [-damage_to(target), -target.effective_power, -target.initiative]
-    }
+    @target = targets.filter { |target|
+        damage_to(target) > 0
+      }
+      .sort_by { |target|
+        [-damage_to(target), -target.effective_power, -target.initiative]
+      }
 
     print_target_selection(targets)
 
@@ -50,7 +53,6 @@ class Group
   end
 
   def perform_attack
-    p [@target.units, residual, damage_to]
     @target.units -= residual
   end
 
