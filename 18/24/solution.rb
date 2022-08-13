@@ -1,4 +1,6 @@
 
+$debug = false
+
 Group = Struct.new(
   :index,
   :type,
@@ -25,6 +27,8 @@ class Group
       [-damage_to(target), -target.effective_power, -target.initiative]
     }
 
+    print_target_selection(targets)
+
     @target = @target.first
     targets.delete(@target)
   end
@@ -49,6 +53,14 @@ class Group
 
   def residual
     damage_to / (@target&.hp || 1)
+  end
+
+  def print_target_selection(targets)
+    return $debug unless $debug
+
+    targets.each { |t|
+      puts("#{type == :infection ? "Infection" : "Immune System"} group #{index + 1} would deal defending group #{t.index + 1} #{damage_to(t)} damage")
+    }
   end
 end
 
@@ -108,15 +120,15 @@ class Battle
   def battle
     @immune_system.each { |group| group.attack += @boost }
     until defeat?
+      print_status && puts
+
       fight
     end
 
+    print_status
     [@immune_system, @infection].flat_map { |groups| groups.map(&:units) }.sum
   end
 
-  # 2678 -> too low, when I zero out infection on deadlock
-  # 3958 -> too high, when I zero out both on deadlock
-  # Both approaches give right answer for example
   def destroy_if_deadlocked
     # If we're deadlocked just remove everythig because at least then
     # we'll end the loop and the caller will think there's no reindeer left
@@ -132,6 +144,8 @@ class Battle
 
   def fight
     select_targets
+    puts if $debug
+
     destroy_if_deadlocked
     attack
   end
@@ -151,6 +165,7 @@ class Battle
 
   def attack
     all_groups.sort_by { |group| -group.initiative }.each { |group|
+      print_attack(group)
       attack_for(group)
     }
   end
@@ -195,11 +210,50 @@ class Battle
     @immune_system.empty? || @infection.empty?
   end
 
+  ############################################################
+  # Printing
+  ############################################################
+  def print_attack(group)
+    return $debug unless $debug
+    return unless all_groups.include?(group) && all_groups.include?(group.target)
+
+    killed = [group.damage_to / group.target.hp, group.target.units].min
+    puts(
+      (group.type == :infection ? "Infection" : "Immune System") +
+      " group #{group.index + 1} attacks defending " +
+      "group #{group.target.index + 1}, killing " +
+      "#{killed} unit" +
+      (killed == 1 ? "" : "s")
+    )
+  end
+
+
+  def print_status
+    return $debug unless $debug
+
+    puts("Immune System:")
+    if @immune_system.empty?
+      puts("No groups remain.")
+    end
+
+    @immune_system.each_with_index { |group|
+      puts("Group #{group.index + 1} contains #{group.units} units")
+    }
+
+    puts("Infection:")
+    if @infection.empty?
+      puts("No groups remain.")
+    end
+    @infection.each_with_index { |group|
+      puts("Group #{group.index + 1} contains #{group.units} units")
+    }
+  end
+
   def self.parse(text)
     immune, infection = text.split("\n\n")
       .map { |block| [block.split("\n").first[...-1].downcase.to_sym, block.split("\n").drop(1)] }
       .map { |type, block| block.each_with_index.map { |line, idx| parse_group(type, line, idx) }}
-    
+
     new(immune, infection, 0)
   end
 
