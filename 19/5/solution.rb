@@ -11,6 +11,10 @@ class IntcodeProgram
     2 =>            :multiply,
     3 =>            :read_value,
     4 =>            :write_value,
+    5 =>            :jump_if_true,
+    6 =>            :jump_if_false,
+    7 =>            :less_than,
+    8 =>            :equals,
     99 =>           :halt,
   }
 
@@ -19,6 +23,10 @@ class IntcodeProgram
     add:            4,
     read_value:     2,
     write_value:    2,
+    jump_if_true:   0,
+    jump_if_false:  0,
+    less_than:      4,
+    equals:         4,
     halt:           0,
   }
 
@@ -26,15 +34,20 @@ class IntcodeProgram
     @text = text
   end
 
+  def dup
+    IntcodeProgram.new(@text.dup)
+  end
+
   def solve
     [
-      IntcodeProgram.new(@text.dup).prep_input.interpret.last,
+      dup.prep_input(1).interpret.last,
+      dup.prep_input(5).interpret.last,
     ]
   end
 
-  def prep_input
+  def prep_input(input)
     @outputs = []
-    @inputs = [1]
+    @inputs = [input]
     self
   end
 
@@ -89,6 +102,36 @@ class IntcodeProgram
 
   def write_value
     @outputs << parameters(1).first
+  end
+
+  def jump_if_true
+    first, second = parameters(2)
+    if first != 0
+      @ip = second
+    else
+      # Increment by size, because we record size as zero above
+      @ip += 3
+    end
+  end
+
+  def jump_if_false
+    first, second = parameters(2)
+    if first == 0
+      @ip = second
+    else
+      # Increment by size, because we record size as zero above
+      @ip += 3
+    end
+  end
+
+  def less_than
+    first, second = parameters(2)
+    @text[target(3)] = first < second ? 1 : 0
+  end
+
+  def equals
+    first, second = parameters(2)
+    @text[target(3)] = first == second ? 1 : 0
   end
 
   def parameters(count)
