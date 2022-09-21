@@ -13,7 +13,34 @@ class Painter
     @program = program
   end
 
+  def dup
+    Painter.new(
+      @white_squares.dup,
+      @location.dup,
+      @direction,
+      @program.dup,
+    )
+  end
+
   def solve
+    [dup.part1, dup.part2]
+  end
+
+  def part2
+    @visited = Set.new
+    @white_squares << @location
+    @program.start
+
+    until @program.done?
+      @visited << @location
+      step
+    end
+
+    debug
+    @visited.count
+  end
+
+  def part1
     @visited = Set.new
     @program.start
 
