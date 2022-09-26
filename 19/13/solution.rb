@@ -297,16 +297,129 @@ class IntcodeProgram
   end
 end
 
+##############################################
+#################### Game ####################
+##############################################
+
+class IntcodeProgram
+  attr_reader :state
+  def insert_quarter
+    @text[0] = 2
+  end
+end
+
 class Game
   class << self
     def run(program)
-      new(IntcodeProgram.parse(program))
+      new(IntcodeProgram.parse(program).dup)
     end
   end
 
   def initialize(program)
     @program = program
   end
+
+  ### PART 2
+
+  def play
+    @program.insert_quarter
+    @program.start!
+    loop do
+      calculate_screen
+      return final_display if @program.done?
+      display_screen(skip: true)
+      play_move
+    end
+  end
+
+  def final_display
+    puts @program.state
+    calculate_screen
+    display_screen
+  end
+
+  def calculate_screen
+    until @program.reading? || @program.done?
+      @program.continue!
+    end
+  end
+
+  def display_screen(skip: false)
+    @score ||= "invalid: no score"
+    @display ||= {}
+
+    @program.receive_signals.each_slice(3) { |x, y, value|
+      if [x,y] == [-1,0]
+        @score = value
+      else
+        @display[[x,y]] = value
+      end
+    }
+
+    show_display unless skip
+    puts @score unless skip
+  end
+
+  def show_display
+    minx,maxx = @display.keys.map(&:first).minmax
+    miny,maxy = @display.keys.map(&:last).minmax
+
+    miny.upto(maxy) { |y|
+      minx.upto(maxx) { |x|
+        show_pixel([x,y])
+      }
+      puts
+    }
+  end
+
+  def show_pixel(point)
+    case @display[point]
+    when 0;           print " "
+    when 1;           print "#"
+    when 2;           print "H"
+    when 3;           print "_"
+    when 4;           print "o"
+    when nil;         print " "
+    end
+  end
+
+  def play_move
+    @program.send_signal(best_move)
+    @program.continue!
+  end
+
+  def best_move
+    ball_location <=> paddle_location
+  end
+
+  def paddle_location
+    item_location(3)
+  end
+
+  def ball_location
+    item_location(4)
+  end
+
+  def item_location(item)
+    @display.filter { |_,v| v == item } # {coords => item}
+      .first # [coords, item]
+      .first # coords
+      .first # x
+  end
+
+  def input_move
+    case $stdin.getch
+    when ?j
+      @program.send_signal(-1)
+    when ?l
+      @program.send_signal(1)
+    else # including the desired key, 'k'
+      @program.send_signal(0)
+    end
+    @program.continue!
+  end
+
+  ### PART 1
 
   def count_block_tiles
     @program.dup.interpret!
