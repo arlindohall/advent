@@ -326,16 +326,23 @@ class Game
     @program.start!
     loop do
       calculate_screen
-      return final_display if @program.done?
+      update_display
       display_screen(skip: true)
+      return if @program.done?
       play_move
     end
+  ensure
+    puts @score
   end
 
-  def final_display
+  PRINT_PROGRESS = false
+  def update_display
+    return unless PRINT_PROGRESS
+    print "\033[2J\033[H"
     puts @program.state
     calculate_screen
     display_screen
+    sleep 0.02
   end
 
   def calculate_screen
