@@ -1,4 +1,5 @@
 $debug = false
+$debug_evens = true
 
 class Nanofactory
   Ingredient = Struct.new(:amount, :name)
@@ -10,12 +11,81 @@ class Nanofactory
     end
   end
 
+  def dup
+    Nanofactory.new(@recipes)
+  end
+
   def initialize(recipes)
     @recipes = recipes
   end
 
   def fuel
     build("FUEL", 1)
+  end
+
+  def possible_fuel
+    evenly_divided_part + remainder_part
+  end
+
+  def evenly_divided_part
+    even_units * evenly_divided_fuel
+  end
+
+  def remainder_part
+    tester = dup
+    ore_to_work_with = goal_ore % evenly_divided_ore
+    fuel = 0
+    loop do
+      return fuel if tester.ore > ore_to_work_with
+      tester.fuel
+      fuel += 1
+    end
+  end
+
+  def even_units
+    goal_ore / evenly_divided_ore
+  end
+
+  def evenly_divided_fuel
+    calculate_evens unless @evenly_divided_fuel
+    @evenly_divided_fuel
+  end
+
+  def evenly_divided_ore
+    calculate_evens unless @evenly_divided_ore
+    @evenly_divided_ore
+  end
+
+  def calculate_evens
+    tester = dup
+    tester.fuel
+    f = 1
+    until tester.even?
+      tester.fuel
+      f += 1
+      debug_evens(f, tester)
+    end
+
+    @evenly_divided_fuel = f
+    @evenly_divided_ore = tester.ore
+  end
+
+  def debug_evens(f, tester)
+    return unless $debug_evens && f % 100 == 0
+    puts "Calculating evens, #{f}"
+    p tester.leftovers
+  end
+
+  def ore
+    @ore_used || 0
+  end
+
+  def even?
+    leftovers.values.all? { |value| value == 0 }
+  end
+
+  def goal_ore
+    1_000_000_000_000 # 1 trillion
   end
 
   def build(name, amount)
