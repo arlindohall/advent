@@ -1,4 +1,4 @@
-$debug = false
+$debug = true
 
 class Nanofactory
   Ingredient = Struct.new(:amount, :name)
@@ -18,31 +18,99 @@ class Nanofactory
     build("FUEL", 1)
   end
 
-  def build(name, amount)
-    return use_ore(amount) if name == "ORE"
-
-    until have_enough(name, amount)
-      produce(name)
-    end
-
-    use(name, amount)
+  def possible_fuel
+    small = goal/dup.fuel
+    large = goal
+    mid = (small + large) / 2
+    binary_search(small, mid, large)
   end
 
-  def produce(name)
+  def binary_search(small, mid, large)
+    puts "Searching [#{small}, #{mid}, #{large}]"
+    return small if small == large
+
+    small_ore = dup.build("FUEL", small)
+    mid_ore = dup.build("FUEL", mid)
+    large_ore = dup.build("FUEL", large)
+
+    # If the window is outside of the goal
+    raise "Out of bounds, low" if large_ore < goal
+    raise "Out of bounds, high" if small_ore > goal
+
+    # If we got lucky and used exactly 1 trillion ore
+    return small if small_ore == goal
+    return large if large_ore == goal
+    return mid if mid_ore == goal
+
+    # If we're within 1 of the goal, i.e. we can't divide any more
+    # the large is still outside the window
+    return small if mid == small || mid == large
+
+    if mid_ore > goal
+      binary_search(small, (small + mid) / 2, mid)
+    elsif mid_ore < goal
+      binary_search(mid, (mid + large) / 2, large)
+    end
+  end
+
+  def goal
+    1_000_000_000_000
+  end
+
+  def build(name, amount)
+    return if name == "ORE"
     raise "Don't know how to make #{name}" unless @recipes[name]
 
-    @recipes[name].inputs.each { |input| build(input.name, input.amount) }
-    leftovers[name] ||= 0
-    leftovers[name] += @recipes[name].output.amount
+    # how many times to run the production of `name`
+    needed = needed(name, amount)
+    factor = needed % unit_of(name) == 0 ?
+      needed / unit_of(name) :
+      needed / unit_of(name) + 1
+
+    source(name, factor)
+    produce(name, factor)
   end
 
-  def use(name, amount)
+  def needed(name, amount)
+    leftovers[name] ||= 0
+    return 0 if amount < leftovers[name]
+
+    amount - leftovers[name]
+  end
+
+  def unit_of(name)
+    @recipes[name].output.amount
+  end
+
+  def source(name, factor)
+    return if factor == 0
+    @recipes[name].inputs.each do |input|
+      build(input.name, factor * input.amount)
+
+      amount = factor * input.amount
+      name = input.name
+      consume(name, amount)
+    end
+  end
+
+
+  def consume(name, amount)
+    return use_ore(amount) if name == "ORE"
+
+    leftovers[name] ||= 0
+
+    raise "Don't have enough #{name} (#{leftovers[name]}/#{amount})" unless leftovers[name] >= amount
+    leftovers[name] -= amount
+  end
+
+  def produce(name, factor)
+    return if factor == 0
+
+    amount = factor * unit_of(name)
     debug(name, amount)
 
     leftovers[name] ||= 0
-    raise "Don't have enough #{name} (#{leftovers[name]})" unless leftovers[name] >= amount
-    leftovers[name] -= amount
-
+    leftovers[name] += factor * unit_of(name)
     @ore_used
   end
 
@@ -63,7 +131,7 @@ class Nanofactory
   def debug(name, amount)
     return unless $debug
 
-    puts "Using #{amount} #{name}, have #{leftovers[name]}"
+    puts "Making #{amount} #{name}, have #{leftovers[name]}"
   end
 
   class << self
@@ -91,6 +159,35 @@ class Nanofactory
       ]
     end
   end
+end
+
+def test
+  [
+    [@example1, 31],
+    [@example2, 165],
+    [@example3, 13312],
+    [@example4, 180697],
+    [@example5, 2210736],
+  ]
+  .map { |ex, exp| [Nanofactory.parse(ex).fuel, exp] }
+  .each { |val, exp| raise "Part 1: Expected #{exp} got #{val}" unless val == exp }
+
+  [
+    [@example3, 82892753],
+    [@example4, 5586022],
+    [@example5, 460664],
+  ]
+  .map { |ex, exp| [Nanofactory.parse(ex).possible_fuel, exp] }
+  .each { |val, exp| raise "Part 2: Expected #{exp} got #{val}" unless val == exp }
+
+  :success
+end
+
+def solve
+  [
+    Nanofactory.parse(@input).fuel,
+    Nanofactory.parse(@input).possible_fuel,
+  ]
 end
 
 @example1 = <<-fuel
