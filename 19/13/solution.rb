@@ -1,4 +1,6 @@
 
+$debug = true
+
 ###########################################################
 ######################### INTCODE #########################
 ###########################################################
@@ -327,7 +329,7 @@ class Game
     loop do
       calculate_screen
       update_display
-      display_screen(skip: true)
+      display_screen(skip: !$debug)
       return if @program.done?
       play_move
     end
@@ -338,7 +340,6 @@ class Game
   PRINT_PROGRESS = false
   def update_display
     return unless PRINT_PROGRESS
-    print "\033[2J\033[H"
     puts @program.state
     calculate_screen
     display_screen
@@ -371,6 +372,7 @@ class Game
     minx,maxx = @display.keys.map(&:first).minmax
     miny,maxy = @display.keys.map(&:last).minmax
 
+    print "\033[H"
     miny.upto(maxy) { |y|
       minx.upto(maxx) { |x|
         show_pixel([x,y])
@@ -434,6 +436,13 @@ class Game
       .filter { |slice| slice[2] == 2 }
       .count
   end
+end
+
+def solve
+  [
+    Game.run(@input).count_block_tiles,
+    Game.run(@input).play,
+  ]
 end
 
 @input = <<-program.strip

@@ -56,7 +56,7 @@ class Map
     i = 0
     until @searchers.empty? || found_all_numbers
       if show_map?
-        print "\033[2J\033[H"
+        print "\033[H"
         puts show
         sleep 0.1
       end
@@ -198,6 +198,10 @@ class Map
   def loser?(path)
     @@solved && @@solved < path.steps
   end
+end
+
+def solve
+  Map.from_str(@input).solve
 end
 
 @example = <<-EOS.strip
