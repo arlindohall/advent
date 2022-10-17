@@ -9,7 +9,7 @@ class Map
   end
 
   def fill_oxygen
-    # 208 and 209 are too low
+    finish_map
     @search_states = @oxygen.start_over.neighbors
     until @search_states.empty?
       fill_next_state
@@ -17,6 +17,13 @@ class Map
     end
 
     @distance
+  end
+
+  def finish_map
+    until @search_states.empty?
+      search_next_state
+      debug
+    end
   end
 
   def fill_next_state
@@ -27,13 +34,13 @@ class Map
   end
 
   def fill_map
-    update_map unless map[@current.location]
-    return false if location == ?#
-
-    map[@current.location] = ?O if map[@current.location] == ?.
+    raise "Gone off map" unless location
+    raise "Already checked for walls" unless location == ?.
+    map[@current.location] = ?O
 
     @distance ||= 0
-    raise unless @current.distance >= @distance
+    raise "Going backwards" unless @distance <= @current.distance
+
     @distance = @current.distance
   end
 
