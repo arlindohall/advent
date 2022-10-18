@@ -4,7 +4,6 @@ class FFT
 
   def initialize(input, size = nil)
     @input = input
-    @size = size || input.size
   end
 
   def self.parse(input)
@@ -12,16 +11,38 @@ class FFT
   end
 
   def real_signal
-    FFT.new(@input, @size * 10000)
+    FFT.new(end_of_input)
+  end
+
+  def end_of_input
+    first_seven.upto(@input.size * 10000 - 1).map do |i|
+      @input[i % @input.size]
+    end
+  end
+
+  def first_eight_with_offset
+    output_with_offset(100).take(8).map(&:to_s).join
+  end
+
+  def output_with_offset(n)
+    result = self
+    n.times { |i| result = result.next_phase_with_offset; puts "step #{i}" }
+    result.input
+  end
+
+  def next_phase_with_offset
+    result = Array.new(@input.size, 0)
+    result[-1] = @input[-1] % 10
+
+    (result.size - 2).downto(0) do |i|
+      result[i] = (result[i + 1] + @input[i]) % 10
+    end
+
+    FFT.new(result)
   end
 
   def first_eight
     output(100).take(8).map(&:to_s).join
-  end
-
-  def first_eight_with_offset
-    @offset = true
-    first_eight
   end
 
   def output(n)
@@ -32,10 +53,9 @@ class FFT
 
   def next_phase
     FFT.new(
-      @size.times.map do |i|
+      @input.size.times.map do |i|
         digit(i)
-      end,
-      @size
+      end
     )
   end
 
@@ -50,7 +70,7 @@ class FFT
   def pattern(bit)
     shift, index = 1, 0             unless @offset
     shift, index = first_seven, 0   if @offset
-    until index >= @size
+    until index >= @input.size
       yield(index, mult_for(shift, bit))
       index += 1 ; shift += 1
     end
@@ -98,9 +118,14 @@ end
 def solve
   [
     FFT.parse(@input).first_eight,
-    # FFT.parse(@input).real_signal.first_eight_with_offset,
+    FFT.parse(@input).real_signal.first_eight_with_offset,
   ]
 end
 
 @input = "59756772370948995765943195844952640015210703313486295362653878290009098923609769261473534009395188480864325959786470084762607666312503091505466258796062230652769633818282653497853018108281567627899722548602257463608530331299936274116326038606007040084159138769832784921878333830514041948066594667152593945159170816779820264758715101494739244533095696039336070510975612190417391067896410262310835830006544632083421447385542256916141256383813360662952845638955872442636455511906111157861890394133454959320174572270568292972621253460895625862616228998147301670850340831993043617316938748361984714845874270986989103792418940945322846146634931990046966552"
-@example = FFT.new("12345678")
+@example = FFT.parse("12345678")
+@long_examples = [
+  FFT.parse("03036732577212944063491565474664"),
+  FFT.parse("02935109699940807407585447034323"),
+  FFT.parse("03081770884921959731165446850517"),
+]
