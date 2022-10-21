@@ -280,6 +280,10 @@ class IntcodeProgram
     @text[@ip] % 100
   end
 
+  def override!(position, value)
+    @text[position] = value
+  end
+
   def send_signal(val)
     @inputs << val
   end

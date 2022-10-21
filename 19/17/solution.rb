@@ -1,9 +1,20 @@
+$debug=false
 
 require_relative '../intcode'
 
 class ASCII
+
+  # Gotten through experimentation
+  SEGMENT1 = "R,10,L,8,R,10,R,4"
+  SEGMENT2 = "L,6,L,6,R,10"
+  SEGMENT3 = "L,6,R,12,R,12,R,10"
+
   def initialize(program)
     @program = program
+  end
+
+  def dup
+    ASCII.new(@program.dup)
   end
 
   def initial_scaffold
@@ -17,6 +28,86 @@ class ASCII
     Scaffold.parse(initial_scaffold)
   end
 
+  def dust
+    input = dup.program_input
+    machine = @program.dup
+    machine.override!(0, 2)
+
+    input = <<~input
+    #{input}
+    #{movement_functions}
+    n
+    input
+
+    puts input
+
+    input.chars.each { |ch| machine.send_signal(ch.ord) }
+    machine.interpret!
+
+    # Why doesn't this work when I send 'n'?
+    signals =  machine.receive_signals
+    puts signals.pack('c*')
+    puts signals.last
+  end
+
+  def dust_debug
+    input = dup.program_input
+    machine = @program.dup
+    machine.override!(0, 2)
+
+    input = <<~input
+    #{input}
+    #{movement_functions}
+    n
+    input
+
+    puts input
+
+    input.chars.each { |ch| machine.send_signal(ch.ord) }
+    machine.interpret!(debug: true)
+
+    # Why doesn't this work when I send 'n'?
+    # signals =  machine.receive_signals
+    # puts signals.pack('c*')
+    # puts signals.last
+  end
+
+  def dust_manual
+    puts "Please enter at the prompt:"
+    puts dup.program_input
+    puts movement_functions
+    puts "n"
+
+    machine = @program.dup
+    machine.override!(0, 2)
+    machine.start!
+
+    until machine.done?
+      machine.send_signal(read_char) if machine.reading?
+      print machine.receive_signals.pack('c*') if machine.writing?
+      machine.continue!
+    end
+  end
+
+  def read_char
+    ch = $stdin.getch
+    return ch.ord if ch != "\r"
+    return "\n".ord
+  end
+
+  def program_input
+    scaffold
+      .path
+      .join(',')
+      .gsub(SEGMENT1, "A")
+      .gsub(SEGMENT2, "B")
+      .gsub(SEGMENT3, "C")
+  end
+
+  def movement_functions
+    [SEGMENT1, SEGMENT2, SEGMENT3].join("\n")
+  end
+
   def self.parse(input)
     new(IntcodeProgram.parse(input).dup)
   end
@@ -26,6 +117,108 @@ class Scaffold
   attr_reader :map
   def initialize(map)
     @map = map
+    @xmax = @map.keys.map(&:first).max
+    @ymax = @map.keys.map(&:last).max
+  end
+
+  def path
+    return @path if @path
+
+    @path = []
+    @vacuum = @map.keys.find { |x, y| @map[[x, y]] == '^' }
+    while turn
+      debug
+      @path << next_step
+    end
+
+    @path
+  end
+
+  def turn
+    neighbors.reject { |point| coming_from?(point) }
+      .filter { |point| @map[point] == ?# }
+      .tap { |list| raise "Cannot have multiple choices" unless list.size < 2 }
+      .map { |point| to_direction(point) }
+      .first
+  end
+
+  def neighbors
+    x, y = @vacuum
+    [
+      [x+1,y],
+      [x-1,y],
+      [x,y+1],
+      [x,y-1],
+    ].filter { |point| @map[point] }
+  end
+
+  def coming_from?(point)
+    x, y = @vacuum
+    case @map[@vacuum]
+    when ?^
+      point == [x, y+1]
+    when ?>
+      point == [x-1, y]
+    when ?v
+      point == [x, y-1]
+    when ?<
+      point == [x+1, y]
+    else
+      raise "Not sure how to handle #{@map[@vacuum]} (loc=#{@vacuum})"
+    end
+  end
+
+  def to_direction(point)
+    x, y = @vacuum
+    dx, dy = point
+    [dx-x, dy-y]
+  end
+
+  def next_step
+    dir = turn
+    turn = do_turn(dir)
+    travel = do_travel(dir)
+
+    "#{turn},#{travel}"
+  end
+
+  def do_turn(dir)
+    old = @map[@vacuum]
+
+    @map[@vacuum] = case dir
+    when [ 0, 1]    then ?v
+    when [ 0,-1]    then ?^
+    when [-1, 0]    then ?<
+    when [ 1, 0]    then ?>
+    else
+      raise "Not sure how to turn #{dir}"
+    end
+
+    case [old, @map[@vacuum]]
+    when [?^, ?>], [?>, ?v], [?v, ?<], [?<, ?^] then 'R'
+    when [?^, ?<], [?<, ?v], [?v, ?>], [?>, ?^] then 'L'
+    else
+      raise "Impossible turn old=#{old} new=#{@map[@vacuum]}"
+    end
+  end
+
+  def do_travel(dir)
+    x, y    = @vacuum
+    dx, dy  = dir
+    steps   = 0
+
+    until @map[[x+dx, y+dy]] != ?#
+      x += dx
+      y += dy
+      steps += 1
+    end
+
+    @map[[x,y]] = @map[@vacuum]
+    @map[@vacuum] = ?#
+
+    @vacuum = [x,y]
+
+    steps
   end
 
   def alignment_parameters
@@ -46,6 +239,17 @@ class Scaffold
       @map[[x,y+1]],
       @map[[x,y-1]],
     ].all? { |c| c == ?# }
+  end
+
+  def debug
+    return unless $debug
+    print "\033[H"
+    0.upto(@ymax) do |y|
+      0.upto(@xmax).map do |x|
+        print @map[[x,y]] || '.'
+      end
+      print "\n"
+    end
   end
 
   def self.parse(input)
@@ -82,3 +286,43 @@ text
 ..#...#...#..
 ..#####...^..
 map
+
+class IntcodeProgram
+  def interpret!(debug: false)
+    @state ||= :running # leave state alone so we can call recursively
+    @ip, @rb = 0, 0
+
+    loop do
+      until done? || paused?
+        step!
+      end
+
+      debug_vacuum_robot if debug
+      return @outputs if done?
+
+      raise 'running through, cannot read' if reading?
+
+      adjust_ip!
+      @state = :running
+    end
+  end
+
+  def debug_vacuum_robot
+    raise if @outputs && @outputs.size > 1
+
+    if @outputs.last == "\n".ord && @previous == @outputs.last
+      print "\033[H"
+      @outputs = []
+      @previous = nil
+      return
+    end
+
+    @previous = @outputs.last if @outputs.last
+
+    if (@outputs.last || 0) > 128
+      puts receive_signals.last
+    else
+      print receive_signals.pack('c*')
+    end
+  end
+end
