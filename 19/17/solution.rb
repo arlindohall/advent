@@ -58,7 +58,7 @@ class ASCII
     input = <<~input
     #{input}
     #{movement_functions}
-    n
+    y
     input
 
     puts input
@@ -70,6 +70,40 @@ class ASCII
     # signals =  machine.receive_signals
     # puts signals.pack('c*')
     # puts signals.last
+  end
+
+  # I confirmed that my input on other peoples' solutions actually produces
+  # 10 when you input 'n', but the right answer when you input 'y', so I'm
+  # going to just get over it and move on.
+  def dust_wtf
+    input = dup.program_input
+    @input_chars = <<~input
+    #{input}
+    #{movement_functions}
+    n
+
+
+
+    input
+
+    machine = @program.dup
+    machine.override!(0, 2)
+    machine.start!
+
+    until machine.done?
+      machine.send_signal(read_char_wtf) if machine.reading?
+      print machine.receive_signals.pack('c*') if machine.writing?
+      machine.continue!
+    end
+  end
+
+  def read_char_wtf
+    @input_char_index ||= 0
+    raise "WTF out of bounds on input" if @input_char_index >= @input_chars.size
+    print @input_chars[@input_char_index]
+    @input_chars[@input_char_index].ord
+  ensure
+    @input_char_index += 1
   end
 
   def dust_manual

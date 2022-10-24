@@ -138,6 +138,8 @@ class Day
   end
 
   def repl
+    return run_once unless ARGV.empty?
+
     puts "Starting REPL for #{@path}"
     loop do
       return unless system(repl_command)
@@ -146,6 +148,10 @@ class Day
 
   def repl_command
     "irb -r \"./#{@path.join("solution.rb").to_s}\""
+  end
+
+  def run_once
+    system("ruby -e 'require \"#{@path.join("solution.rb").to_s}\" ; #{ARGV.join(" ")}'")
   end
 end
 

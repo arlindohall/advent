@@ -144,6 +144,9 @@ class IntcodeProgram
   end
 
   def debug(code)
+    print "\033[H"
+    @text.map{ |ch| print ch.to_s.rjust(5) }
+    puts
     [
       'code=>', code,
       'ip=>', @ip,
@@ -151,8 +154,7 @@ class IntcodeProgram
       'text=>', @text[@ip..@ip + SIZE[code] - 1],
       'modes=>', modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
       'outputs=>', @outputs,
-    ].plop
-    @text.plop
+    ].each { |s| print s.to_s.ljust(25) }
     puts
   end
 
