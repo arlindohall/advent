@@ -147,7 +147,7 @@ class Day
   end
 
   def repl_command
-    "irb -r \"./#{@path.join("solution.rb").to_s}\""
+    "irb -r \"#{@path.join("solution.rb").to_s}\""
   end
 
   def run_once
