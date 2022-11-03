@@ -1,176 +1,162 @@
-$debug = true
+$debug = false
 
 class Tunnels
   attr_reader :steps
 
-  def initialize(map, location, x, y, steps = 0, keys_held = [])
-    @map = map
+  def initialize(graph, location, steps = 0, keys_held = [])
+    @graph = graph
     @location = location
-    @x, @y = x, y
     @steps = steps
     @keys_held = keys_held
   end
 
   def dup
     Tunnels.new(
-      @map.dup,
-      @location.dup,
-      @x, @y,
+      @graph,
+      @location,
       @steps,
       @keys_held.dup,
     )
   end
 
   def find_all_keys
-    @search_queue = [dup]
-
-    until @search_queue.empty?
-      enqueue_keys
-    end
-
-    @steps_found
-  end
-
-  def enqueue_keys
-    # pop instead of shift for dfs
-    next_state = @search_queue.shift
-    return if @steps_found && next_state.steps >= @steps_found
-
-    keys = next_state.reachable_keys
-
-    next_state.debug
-    if keys.empty?
-      @steps_found ||= next_state.steps
-      @steps_found = [next_state.steps, @steps_found].min
-      return
-    end
-
-    keys.each do |loc, steps|
-      enqueue_valid_states_only(next_state, loc, steps)
-    end
-  end
-
-  def enqueue_valid_states_only(next_state, loc, steps)
-    p [@steps_found, next_state.steps + steps, @visited_states&.size, @visited_states&.values&.minmax]
-    return if @steps_found && steps >= @steps_found
-
-    move = next_state.move_to(loc, steps)
-    return if seen?(move)
-
-    @search_queue << move
-  end
-
-  def seen?(move)
-    @visited_states ||= {}
-
-    if @visited_states[move.map_hash] && @visited_states[move.map_hash] <= move.steps
-      return true
-    end
-
-    @visited_states[move.map_hash] = move.steps
-    false
-  end
-
-  def map_hash
-    [@location, @keys_held.sort]
-  end
-
-  def reachable_keys
-    @key_search_queue = [[@location, 0]]
-    @reachable_keys = []
-
-    until @key_search_queue.empty?
-      # debug
-      look_for_key
-    end
-
-    @reachable_keys
-  end
-
-  def move_to(location, steps)
-    keys_held = @keys_held.dup
-    keys_held << @map[location] if @map[location] =~ /[a-z]/
-
-    map = @map.dup
-    map[@location] = '.'
-    map[location] = '@'
-    map.each { |k,v| map[k] = '.' if v == '*' }
-
-    Tunnels.new(
-      map,
-      location,
-      @x, @y,
-      @steps + steps,
-      keys_held,
-    )
-  end
-
-  def look_for_key
-    @step = @key_search_queue.shift
-    visit_step
-  end
-
-  def visit_step
-    if @map[@step.first] =~ /[a-z]/
-      @reachable_keys << @step
-      return
-    end
-
-    if @map[@step.first] =~ /[A-Z]/
-      open_door
-      return
-    end
-
-    @map[@step.first] = '*'
-    step_neighbors.each { |n| @key_search_queue << [n, @step.last + 1] }
-  end
-
-  def open_door
-    if @keys_held.include?(@map[@step.first].downcase)
-      @map[@step.first] = '*'
-      step_neighbors.each { |n| @key_search_queue << [n, @step.last + 1] }
-    end
-  end
-
-  def step_neighbors
-    x, y = @step.first
-    [
-      [x-1, y],
-      [x+1, y],
-      [x, y-1],
-      [x, y+1],
-    ].filter { |loc| !['#', '*'].include?(@map[loc]) }
-  end
-
-  def debug
-    return unless $debug
-    # $stdin.getch
-    print "\x1b[H"
-    0.upto(@y).each do |y|
-      0.upto(@x).each { |x| print @map[[x,y]] || ' ' }
-      puts
+    until @keys_held == keys
     end
   end
 
   class << self
     def parse(text)
-      location = nil
-      new(
+      graphify(*map_properties(text))
+    end
+
+    def map_properties(text)
+      [
         text.split("\n")
           .each_with_index
           .flat_map do |line, y|
             line.split('')
               .each_with_index
-              .map do |ch, x|
-                location = [x,y] if ch == '@'
-                [[x,y], ch]
-              end
+              .map { |ch, x| [[x,y], ch] }
           end
           .to_h,
-        location,
         text.split("\n").first.size,
-        text.split("\n").size,
-      )
+        text.split("\n").size
+      ]
+    end
+
+    def graphify(map, x, y)
+      new(graph_from(map, x, y), ?@)
+    end
+
+    def graph_from(map, x, y)
+      parser_from(map, x, y).parse
+    end
+
+    def parser_from(map, x, y)
+      Graph::Parser.new(map, x, y)
+    end
+  end
+end
+
+class Graph
+
+  def initialize(nodes)
+    @nodes = nodes
+  end
+
+  Node = Struct.new(:name, :location, :neighbors)
+  class Node
+  end
+
+  class Parser
+    def initialize(map, x, y)
+      @map = map
+      @x, @y = x, y
+    end
+
+    def dup
+      Parser.new(@map.dup, @x, @y)
+    end
+
+    def parse
+      # puts "Searching #{nodes.size} nodes"
+      nodes.keys.each { |name| nodes[name].neighbors = dup.fill_neighbors(name) }
+      Graph.new(nodes)
+    end
+
+    def nodes
+      @nodes ||= @map.each_with_object({}) do |(location, ch), nodes|
+        raise "Duplicate node #{ch} at #{location}" if nodes[ch]
+        nodes[ch] = Node.new(ch, location) if ch =~ /[A-Za-z@]/
+      end
+    end
+
+    def node(name)
+      nodes[name]
+    end
+
+    def fill_neighbors(key)
+      raise "Unknown key #{key} value=#{node(key)} map=#{@map[node(key).location]}" unless node(key)
+      initialize_search(key)
+      # puts "Searching for #{@starting_point.name}"
+
+      until @search_queue.empty?
+        update_search_queue
+        @distance += 1
+      end
+
+      @found_neighbors
+    end
+
+    def initialize_search(key)
+      @found_neighbors = []
+      @starting_point = node(key)
+      @distance = 1
+      @search_queue = neighbors(@starting_point.location)
+      @map[@starting_point.location] = '#'
+    end
+
+    def update_search_queue
+      debug
+
+      @search_queue = @search_queue.map do |location|
+        visit(location)
+      end
+      .compact
+      .flat_map { |location| neighbors(location) }
+    end
+
+    def visit(location)
+      if @map[location] =~ /[A-Za-z@]/
+        @found_neighbors << [@map[location], @distance]
+        return
+      end
+
+      location
+    ensure
+      @map[location] = '#'
+    end
+
+    def neighbors(location)
+      x, y = location
+      [
+        [x-1, y],
+        [x+1, y],
+        [x, y-1],
+        [x, y+1],
+      ].filter { |loc| @map[loc] && @map[loc] != '#' }
+    end
+
+    def debug
+      return unless $debug
+      print "\033[H"
+      0.upto(@y) do |y|
+        0.upto(@x) do |x|
+          print @map[[x,y]] || ' '
+        end
+        puts
+      end
+      puts @search_queue.size
     end
   end
 end
