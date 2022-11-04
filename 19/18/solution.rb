@@ -1,7 +1,7 @@
 $debug = false
 
 class Tunnels
-  attr_reader :steps
+  attr_reader :steps, :location, :keys_held
 
   def initialize(graph, location, steps = 0, keys_held = [])
     @graph = graph
@@ -19,9 +19,113 @@ class Tunnels
     )
   end
 
+  def travel_to(key, distance)
+    # raise "Traveling to key we already have" if already_has_key?(key)
+    already_has_key?(key) ?
+      Tunnels.new(
+        @graph,
+        key,
+        @steps + distance,
+        @keys_held,
+      ) :
+      Tunnels.new(
+        @graph,
+        key,
+        @steps + distance,
+        key =~ /[a-z]/ ? @keys_held + [key] : @keys_held,
+      )
+  end
+
   def find_all_keys
-    until @keys_held == keys
+    @location = ?@
+    @search_queue = [dup]
+    @search_count = 0
+
+    until @search_queue.empty?
+      @search_count += 1
+      @locus = @search_queue.shift
+      puts "Starting new queue round with locus=#{@locus.location}, " \
+        "fastest=#{@fastest_path}, " \
+        "queue=#{@search_queue.size}, " \
+        "visited/#{@visited&.size}, " \
+        "search_count=#{@search_count}" if @search_count % 1000 == 0
+      enqueue_paths
     end
+
+    @fastest_path
+  end
+
+  def enqueue_paths
+    (print "-Neighbors: " ; p @locus.neighbors) if $debug
+    @locus.neighbors.each do |neighbor, distance|
+      visit(neighbor, distance)
+    end
+  end
+
+  def neighbors
+    @graph.neighbors(@location)
+  end
+
+  def visit(neighbor, distance)
+    return unless @locus.can_access?(neighbor)
+    return if visited?(neighbor, @locus.keys_held)
+
+    move = @locus.travel_to(neighbor, @steps + distance)
+
+    return if check_finished(move)
+
+    (print "-Adding to search queue: " ; puts move.debug) if $debug
+    @search_queue << move
+  end
+
+  def check_finished(move)
+    return false unless move.finished?
+
+    @fastest_path ||= move.steps
+    @fastest_path = [move.steps, @fastest_path].min
+  end
+
+  def visited?(neighbor, keys_held)
+    # puts "--Checking if have key #{neighbor}"
+    # return true if @locus.already_has_key?(neighbor)
+
+    puts "--Checking if visited: #{neighbor}, #{@locus.steps}, #{keys_held}" if $debug
+    @visited ||= {}
+    return true if @visited[[neighbor, keys_held.sort]] &&
+      @visited[[neighbor, keys_held.sort]] <= @locus.steps
+
+    @visited[[neighbor, keys_held.sort]] = @locus.steps
+
+    false
+  end
+
+  def can_access?(door)
+    return true unless door =~ /[A-Z]/
+    @keys_held.include?(door.downcase)
+  end
+
+  def already_has_key?(key)
+    @keys_held.include?(key)
+  end
+
+  def key?(name)
+    name =~ /[a-z]/
+  end
+
+  def entrance?(name)
+    name == ?@
+  end
+
+  def door?(name)
+    name =~ /[A-Z]/
+  end
+
+  def finished?
+    @keys_held.sort == @graph.keys.sort
+  end
+
+  def debug
+    "Tunnels(location=#{@location}, steps=#{@steps}, keys_held=#{@keys_held})"
   end
 
   class << self
@@ -59,9 +163,16 @@ class Tunnels
 end
 
 class Graph
-
   def initialize(nodes)
     @nodes = nodes
+  end
+
+  def keys
+    @keys ||= @nodes.keys.filter { |key| key =~ /[a-z]/ }
+  end
+
+  def neighbors(point)
+    @nodes[point].neighbors
   end
 
   Node = Struct.new(:name, :location, :neighbors)
@@ -105,6 +216,10 @@ class Graph
         @distance += 1
       end
 
+      # p @found_neighbors.map(&:first).uniq
+      # p @found_neighbors.map(&:first)
+
+      raise "Expected unique paths to neighbors" unless @found_neighbors.map(&:first).uniq.size == @found_neighbors.size
       @found_neighbors
     end
 
@@ -113,7 +228,7 @@ class Graph
       @starting_point = node(key)
       @distance = 1
       @search_queue = neighbors(@starting_point.location)
-      @map[@starting_point.location] = '#'
+      @map[@starting_point.location] = ?#
     end
 
     def update_search_queue
@@ -134,7 +249,7 @@ class Graph
 
       location
     ensure
-      @map[location] = '#'
+      @map[location] = ?#
     end
 
     def neighbors(location)
@@ -144,7 +259,7 @@ class Graph
         [x+1, y],
         [x, y-1],
         [x, y+1],
-      ].filter { |loc| @map[loc] && @map[loc] != '#' }
+      ].filter { |loc| @map[loc] && @map[loc] != ?# }
     end
 
     def debug
