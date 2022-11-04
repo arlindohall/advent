@@ -242,11 +242,14 @@ class Graph
     end
 
     def visit(location)
+      return if @map[location] == ?#
+
       if @map[location] =~ /[A-Za-z@]/
         @found_neighbors << [@map[location], @distance]
         return
       end
 
+      raise "Expected path but found #{@map[location]}" unless @map[location] == ?.
       location
     ensure
       @map[location] = ?#
