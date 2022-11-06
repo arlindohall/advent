@@ -243,8 +243,9 @@ class Graph
 
     def visit(location)
       return if @map[location] == ?#
+      @map[location] = ?. if @map[location] == ?@
 
-      if @map[location] =~ /[A-Za-z@]/
+      if @map[location] =~ /[A-Za-z]/
         @found_neighbors << [@map[location], @distance]
         return
       end
