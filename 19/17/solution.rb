@@ -45,9 +45,10 @@ class ASCII
     machine.interpret!
 
     # Why doesn't this work when I send 'n'?
-    signals =  machine.receive_signals
-    puts signals.pack('c*')
-    puts signals.last
+
+    signals = machine.receive_signals
+    puts signals.filter { |s| s < 128 }.pack('c*')
+    return signals.last.plop
   end
 
   def dust_debug
@@ -304,6 +305,7 @@ end
 def solve
   [
     ASCII.parse(@input).scaffold.alignment_parameters,
+    ASCII.parse(@input).dust,
   ]
 end
 

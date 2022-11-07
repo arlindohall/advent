@@ -228,11 +228,11 @@ class IntcodeProgram
   def parameter(value, mode)
     case mode
     when 0
-      position(value)
+      position(value) || 0
     when 1
-      immediate(value)
+      immediate(value) || 0
     when 2
-      relative(value)
+      relative(value) || 0
     end
   end
 
