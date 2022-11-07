@@ -1,13 +1,14 @@
 $debug = false
 
-class Tunnels
-  attr_reader :steps, :location, :keys_held
+STARTING_POINTS = [?@, ?$, ?%, ?&]
 
-  def initialize(graph, location, steps = 0, keys_held = [])
+class Tunnels
+  attr_reader :steps, :location
+
+  def initialize(graph, location, steps = 0)
     @graph = graph
     @location = location
     @steps = steps
-    @keys_held = keys_held
   end
 
   def dup
@@ -15,117 +16,92 @@ class Tunnels
       @graph,
       @location,
       @steps,
-      @keys_held.dup,
     )
   end
 
-  def travel_to(key, distance)
-    # raise "Traveling to key we already have" if already_has_key?(key)
-    already_has_key?(key) ?
-      Tunnels.new(
-        @graph,
-        key,
-        @steps + distance,
-        @keys_held,
-      ) :
-      Tunnels.new(
-        @graph,
-        key,
-        @steps + distance,
-        key =~ /[a-z]/ ? @keys_held + [key] : @keys_held,
-      )
-  end
-
+  # I feel really stupid but I can't figure out what the right answer was
+  # so I literally just copied https://todd.ginsberg.com/post/advent-of-code/2019/day18/
+  # so I can move on to the next part and maybe idk comeback to this later todo
   def find_all_keys
-    @location = ?@
-    @search_queue = [dup]
-    @search_count = 0
+    minimum_steps(Set[@location], Set.new, {})
+  end
 
-    until @search_queue.empty?
-      @search_count += 1
-      @locus = @search_queue.shift
-      puts "Starting new queue round with locus=#{@locus.location}, " \
-        "fastest=#{@fastest_path}, " \
-        "queue=#{@search_queue.size}, " \
-        "visited/#{@visited&.size}, " \
-        "search_count=#{@search_count}" if @search_count % 1000 == 0
-      enqueue_paths
+  # I tried running with truffleruby in hopes that it would speed up, but with
+  # MRuby, I got ~300s and with TR I got something like ~450s
+  #
+  # I really just have no idea what's going on with this solution.
+  def find_all_keys_four_searchers
+    minimum_steps(STARTING_POINTS.dup.to_set, Set.new, {})
+  end
+
+  def minimum_steps(starting_points, keys, distances)
+    @search_count ||= 0 ; @search_count += 1
+    puts "Looking for minimum steps from points=#{starting_points}, " \
+      "keys=#{keys.size}, " \
+      "distances=#{distances.size}" if @search_count % 10_000 == 0
+
+    state = [starting_points, keys]
+
+    return distances[state] if distances[state]
+
+    distances[state] = find_reachable_points(starting_points, keys)
+      .map do |key, distance, source|
+        distance + minimum_steps((starting_points - Set[source]) + Set[key],
+                                 keys + Set[key],
+                                 distances)
+      end.min || 0
+  end
+
+  def find_reachable_points(starting_points, keys)
+    puts "-Looking for reachable points from points=#{starting_points}, " \
+      "keys=#{keys}" if $debug
+
+    starting_points.flat_map do |point|
+      find_reachable_keys(point, keys).map do |key, distance|
+        [key, distance, point]
+      end
+    end
+  end
+
+  def find_reachable_keys(point, keys)
+    puts "--Looking for reachable keys from point=#{point}, " \
+      "keys=#{keys}" if $debug
+
+    search_queue = [point]
+    distances = {point => 0}
+    until search_queue.empty?
+      name = search_queue.shift
+      @graph.neighbors(name).each do |neighbor, distance|
+        puts "---Checking if we can reach #{neighbor} from #{name}" if $debug
+        raise "Trying to visit #{neighbor} without first visiting #{name}" unless distances[name]
+        next unless can_visit?(neighbor, keys)
+        next if distances[neighbor]
+        distances[neighbor] = distances[name] + distance
+        search_queue << neighbor
+      end
     end
 
-    @fastest_path
+    puts "--Found distances=#{distances}" if $debug
+    distances.filter { |name, _| key?(name) }
+      .reject { |name, _| name == point }
+      .reject { |name, _| keys.include?(name) }
+      .map do |name, distance|
+        [name, distance]
+      end
   end
 
-  def enqueue_paths
-    (print "-Neighbors: " ; p @locus.neighbors) if $debug
-    @locus.neighbors.each do |neighbor, distance|
-      visit(neighbor, distance)
-    end
-  end
+  def can_visit?(name, keys)
+    return true unless door?(name)
 
-  def neighbors
-    @graph.neighbors(@location)
-  end
-
-  def visit(neighbor, distance)
-    return unless @locus.can_access?(neighbor)
-    return if visited?(neighbor, @locus.keys_held)
-
-    move = @locus.travel_to(neighbor, @steps + distance)
-
-    return if check_finished(move)
-
-    (print "-Adding to search queue: " ; puts move.debug) if $debug
-    @search_queue << move
-  end
-
-  def check_finished(move)
-    return false unless move.finished?
-
-    @fastest_path ||= move.steps
-    @fastest_path = [move.steps, @fastest_path].min
-  end
-
-  def visited?(neighbor, keys_held)
-    # puts "--Checking if have key #{neighbor}"
-    # return true if @locus.already_has_key?(neighbor)
-
-    puts "--Checking if visited: #{neighbor}, #{@locus.steps}, #{keys_held}" if $debug
-    @visited ||= {}
-    return true if @visited[[neighbor, keys_held.sort]] &&
-      @visited[[neighbor, keys_held.sort]] <= @locus.steps
-
-    @visited[[neighbor, keys_held.sort]] = @locus.steps
-
-    false
-  end
-
-  def can_access?(door)
-    return true unless door =~ /[A-Z]/
-    @keys_held.include?(door.downcase)
-  end
-
-  def already_has_key?(key)
-    @keys_held.include?(key)
+    keys.include?(name.downcase)
   end
 
   def key?(name)
     name =~ /[a-z]/
   end
 
-  def entrance?(name)
-    name == ?@
-  end
-
   def door?(name)
     name =~ /[A-Z]/
-  end
-
-  def finished?
-    @keys_held.sort == @graph.keys.sort
-  end
-
-  def debug
-    "Tunnels(location=#{@location}, steps=#{@steps}, keys_held=#{@keys_held})"
   end
 
   class << self
@@ -172,12 +148,11 @@ class Graph
   end
 
   def neighbors(point)
+    print point unless @nodes[point]
     @nodes[point].neighbors
   end
 
   Node = Struct.new(:name, :location, :neighbors)
-  class Node
-  end
 
   class Parser
     def initialize(map, x, y)
@@ -198,7 +173,7 @@ class Graph
     def nodes
       @nodes ||= @map.each_with_object({}) do |(location, ch), nodes|
         raise "Duplicate node #{ch} at #{location}" if nodes[ch]
-        nodes[ch] = Node.new(ch, location) if ch =~ /[A-Za-z@]/
+        nodes[ch] = Node.new(ch, location) if ch =~ /[A-Za-z@$%&]/
       end
     end
 
@@ -243,17 +218,21 @@ class Graph
 
     def visit(location)
       return if @map[location] == ?#
-      @map[location] = ?. if @map[location] == ?@
+      @map[location] = ?. if entrance?(location)
 
       if @map[location] =~ /[A-Za-z]/
         @found_neighbors << [@map[location], @distance]
         return
       end
 
-      raise "Expected path but found #{@map[location]}" unless @map[location] == ?.
+      raise "Expected path but found #{@map[location]}(#{location})" unless @map[location] == ?.
       location
     ensure
       @map[location] = ?#
+    end
+
+    def entrance?(location)
+      STARTING_POINTS.include?(@map[location])
     end
 
     def neighbors(location)
@@ -292,11 +271,21 @@ def test
     raise "Expected #{expected} got #{actual}" unless actual == expected
   end
 
+  [
+    @example6, 8,
+    @example7, 24,
+    @example8, 32,
+    @example9, 72,
+  ].each_slice(2) do |input, expected|
+    actual = Tunnels.parse(input).find_all_keys_four_searchers
+    raise "Expected #{expected} got #{actual}" unless actual == expected
+  end
+
   :success
 end
 
 def solve
-  Tunnels.parse(@input).find_all_keys
+  [Tunnels.parse(@input).find_all_keys, Tunnels.parse(@input2).find_all_keys_four_searchers]
 end
 
 @example1 = <<-map.strip
@@ -342,6 +331,48 @@ map
 ########################
 map
 
+@example6 = <<-map.strip
+#######
+#a.#Cd#
+##@#$##
+#######
+##%#&##
+#cB#Ab#
+#######
+map
+
+@example7 = <<-map.strip
+###############
+#d.ABC.#.....a#
+######@#$######
+###############
+######%#&######
+#b.....#.....c#
+###############
+map
+
+@example8 = <<-map.strip
+#############
+#DcBa.#.GhKl#
+#.###@#$#I###
+#e#d#####j#k#
+###C#%#&###J#
+#fEbA.#.FgHi#
+#############
+map
+
+@example9 = <<-map.strip
+#############
+#g#f.D#..h#l#
+#F###e#E###.#
+#dCba@\#$BcIJ#
+#############
+#nK.L%#&G...#
+#M###N#H###.#
+#o#m..#i#jk.#
+#############
+map
+
 @input = <<-map.strip
 #################################################################################
 #...#.....#......c....#...#.Q.......#...#f#a....#..j..........#...............#.#
@@ -385,6 +416,90 @@ map
 #.........#.................#...#...#.......#.................#.#.....#.#.......#
 #######################################.@.#######################################
 #.......#.................#...............#.....#...........#.........#...#.....#
+#.#####.#.#########.#####.#.###########.#.#.###.#.#.#######.#.#.#######.#.###.#.#
+#...#.#.#.#...#...#.....#.#...#...#.....#.#...#...#.....#...#.#...#.....#.#...#.#
+###.#.#.###.#.#.#.#####.#.#####.#.#.###.#.###.#########.#####.###.#.#####.#V#####
+#...#.#...#.#.#.#.....#.#.#.....#.#.#...#...#.#.....#.#.....#...#...#...#.#.....#
+#.###.###.#.#.#.#####.#.#.#.#####.#.#.###.###.#.#.#.#.#####.###.#######.#.#####.#
+#...#...#.#.#.#.....#...#.#.#.....#.#...#.#...#.#.#.W.#...#...#.........#.....#.#
+#.#.###.#G#.#.#####.#####.#.#.#####.#####.#.#####.###.###.###.#####.#########.#.#
+#.#.#...#...#.#.....#...#...#.#.........#...#...#...#.......#.....#.#.....#...#.#
+###.#.#######.#.#######.#####.#.#######.#.###.#.###.#######.#.#####.#.###.#.###.#
+#...#.#.....#...#...........#.#.....#...#p....#...#.....#...#......r#.#.....#...#
+#.###.#.#.#######.###.#.#####.#.#####.#.#########.#.###.#E###########.#######.#.#
+#.#.....#.#.........#.#.#...#.#.#.....#.#...#...#.#.#...#...#.S.....#...#.....#.#
+#.#######.#.#########.#.#.#.#.#.#.#######.###.#.#.#.#.#####.###.#######.#.###.###
+#.L.....#.#z....#.....#.#.#.#.#.#...#...#.#...#...#.#.#.........#.......#.#.#...#
+#.#####.#.#####.#.#####.#.#.#.#####.#.#.#.#.#########.#.#########.#######.#.###.#
+#.#...#.#...#...#.....#.#.#...#.....#.#.#.#.......#...#.#...#.....#.#..o#.#.#...#
+#.#.###.###.#.#######.###.#####.#####.#.#.#######.#.###.#.#.#.#####.#.#.#.#.#.###
+#.#.#...#...#.......#...#.#.#...I.....#.#...#...#.#...#...#b#.#.......#.#...#...#
+#.#.#.###.#####.#######.#.#.#.#########.#.#.###.#.###.#######.#.#######.###.###.#
+#.#.#.#.#.......#.....#.#.#......y..#.#.#.#.....#...#...#...#.#..l#..g#.#.....#.#
+#.#.#.#.#.#######H#####.#.###.#####.#.#.#.###.#####.#.#.#.#.#####.#.#.#.#.#####.#
+#...#.#.#...#...#.#..h#.#...#.#...#...#.#.#...#.....#.#.#.#.....#.#.#.#.#.#.#...#
+#.###.#.###.#.#.#.#.#.#.###.###.#.#####.#.#####.#######.#.###.#.#.#.#.#.#.#.#.#.#
+#.#...#.......#.#...#.#.....#...#...#...#...#...#.....#.#...#.#.#.#.#...#...#.#.#
+#.#.###########.#####D#####.#.#####.#.#.#.#.#.###.###.#.###.#.#.#.#.#######.#.#.#
+#.#.#.....#.......#.#.....#...#.....#.#.#.#.#.#...#...#.....#.#.#.#...#.....#.#.#
+#M#.#.###.#######.#.#####.#####.#####.#####.#.#.###.###.#####.###.###.#.#####.#.#
+#.#.....#.#.....#.......#...#.#.#.......#...#...#...#...#...#.......#...#...#.#.#
+#.#######.#.###.#.#########.#A#.###.###.#.#######.#######.#.#.###########.#.#.#.#
+#.#w....#.#...#.#.#....d....#.#...#...#.#.......#...#...#.#.#..m#.....#...#...#.#
+#.#.###.#.###.#.###.#########.###.#####.#.###.#####.#.#.#.#.###.#.###.#.#######.#
+#k#...#.#u#...#...B.#.....#.....#.....#.#...#.....#...#.#.#...#.#.#.#...#..n#...#
+#.###.#.#.#.#########.###.#.#.#.#####J#.###.###.#.#####.#.###.###.#.#######.#.###
+#.#...#...#...#...#...#.#...#.#.....#.#.#...#.#.#.....#.#...#...#.#.........#.#.#
+###.#########.#.###F###.#####.#######.#.#.###.#.#####T#.###.###.#.#.#.#####.#.#.#
+#...#.......#s#...#.........#...#...#...#.#...#.....#.#...#...#.#q#.#.#.....#...#
+#.###.#####.#.#.#.#########.###.#.#.###.#.#.#.#####.#####.###.#.#.#.#.#########C#
+#..e......#...#.#.............#...#.....#...#.....#...........#...#.#...........#
+#################################################################################
+map
+
+@input2 = <<-map.strip
+#################################################################################
+#...#.....#......c....#...#.Q.......#...#f#a....#..j..........#...............#.#
+#.#.#.#.###.#######.#.#.#.#.###.###.#.#.#.#.###.#.#######.###.#.#.###########.#.#
+#.#.#v#.....#.....#.#...#.#.#...#...#.#.#.#...#.......#...#.#.#.#...#...#.....N.#
+###.#.#######.###.#X#######.#.###.###.###.###.#########R###.#.#.###.#.#.#.#######
+#.K.#.....#...#...#.....#...#.#.....#...#.....#.......#.#.#...#...#.#.#.#...#...#
+#.#.#####.#.###.#######.#.###.#####.#.#.#.#####.#####.#.#.#.#####.#.#.#.#####.#.#
+#.#.#.U.#.#.#...#...#...#...#...#...#.#.#.#...#.#...#...#.#.....#.#...#.......#.#
+#.#.###.#.#.#.#####.#.#.###.###.#.#####.#.#.#.#.###.#####.#####.#####.#####.###.#
+#.#.#...#...#.....#.#.#...#.#.#.#.....#.#.#.#.#.Y.#.....#.....#.....#.#...#...#.#
+#.#.#.#.#########.#.#.#####.#.#.#####.#.#.###.###.###.#.###.#.#####.###.#.#####.#
+#.#...#.#.........#.#.........#.#...#...#.#...#...#...#.#...#.#...#...#.#.......#
+#.#######.#########.###########.###.###.#.#.###.###.###.#.###.###.###.#.#######.#
+#.....#...#.#...........#.......#.....#.#...#...#.#...#...#.........#.#.#...#...#
+#.###.#.###.#.#########.#.#######.#####.#####.###.#.#.###############.#.#.#.#.###
+#.#.#.#...#.....#.......#.#.............#.....#.....#.....#.....#...#.#...#.#...#
+#.#.#.###.#####.#.#######.#.#####.#####.#.#####.#####.###.#.###.#.#.#.#.###.#####
+#.#.#...#.O...#.#.#.......#.#...#.#...#.#...#...#...#...#...#...#.#...#...#.....#
+#.#.#.#######.###.#.#####.###.#.#.#.#.#.#.#.#####.#.###.#####.###.#######.#####.#
+#.#.#.......#.....#.....#t#...#.#.#.#.#.#.#.#.....#.#.......#.....#.....#.#.....#
+#.#.#####.#######.#####.###.###.###.#.#.###.#.#####.###########.###.###.###.###.#
+#.......#.........#...#...#.#.#.....#.#.#...#.....#.#.....#...#.....#...#...#.#.#
+#######.###########.#####.#.#.#######.#.#.#####.###.#.###.#.###.#####.###.###.#.#
+#.......#.......#...#...#.#...#...#...#.#.#.....#...#.#.#.#...#.#...#.....#.#...#
+#.#####.#.#######.###.#.#.###.#.###.#####.#.#####.###.#.#.###.###.#.#.#####.#.###
+#.#...#...#...#...#...#.#.#...#...#.....#...#...#.......#...#...#.#.#.#...#...#.#
+#.#.#.#####.#.#.###.###.#.#.#####.#####.#P###.#.#######.###.###.#.#.###.#.###.#.#
+#.#.#.......#...#...#.....#.#.....#...#.#.#i..#...#...#.#.....#...#.#...#...#...#
+###.###############.#######.#.#.#.###.#.#.#####.###.#.###.#########.#.#####.###.#
+#...#.............#...#...#.#.#.#.#...#.#.....#.#...#.....#.......#.#...#...#.#.#
+#.###.#######.###.#.#.#.#.#.###.#.#.#.#.#####.#.#.#.#######.#####.#.###.###.#.#.#
+#.#.........#.#...#.#...#.......#...#.#.#.....#.#.#.#...#...#...#.#...#...#.#.#.#
+#.###########.#.###.###############.###.#.#####.#.###.#.#.###.###.###.###.#.#.#Z#
+#...#.........#.#.#.#.#.......#.....#...#.#.....#.#...#...#...#.....#.....#.#...#
+###.#.#########.#.#.#.#.#####.#.#####.#.#.###.###.#.#########.#.###.#######.#.###
+#.#...#.....#...#.#...#.#...#.#...#...#.#.#...#...#.#.......#.#...#.#.......#.#.#
+#.#####.#.###.###.###.#.#.#.#.#####.###.#.#.###.#.#.###.###.#.###.#.#.#######.#.#
+#.....#.#...#.#.......#...#.#.#...#.#...#.#.#...#.#.....#...#...#.#.#.#.....#..x#
+#.#####.###.#.#############.#.#.#.#.#.###.#.#.###########.###.#.#.###.#.#.#####.#
+#.........#.................#...#...#..@#&..#.................#.#.....#.#.......#
+#################################################################################
+#.......#.................#............$#%#.....#...........#.........#...#.....#
 #.#####.#.#########.#####.#.###########.#.#.###.#.#.#######.#.#.#######.#.###.#.#
 #...#.#.#.#...#...#.....#.#...#...#.....#.#...#...#.....#...#.#...#.....#.#...#.#
 ###.#.#.###.#.#.#.#####.#.#####.#.#.###.#.###.#########.#####.###.#.#####.#V#####
