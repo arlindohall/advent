@@ -1,3 +1,6 @@
+$debug = true
+
+require 'set'
 
 require_relative '../intcode'
 
@@ -7,19 +10,81 @@ class TractorBeam
   end
 
   def points
-    0.upto(50).flat_map do |y|
-      0.upto(50).map do |x|
-        points = @program.dup
-          .tap { |pgm| pgm.send_signal(x) }
-          .tap { |pgm| pgm.send_signal(y) }
-          .tap { |pgm| pgm.interpret! }
-          .receive_signals
-
-        raise "Unexpected output" unless points.size == 1
-
-        points.first
+    0.upto(49).flat_map do |y|
+      0.upto(49).map do |x|
+        is_pulled?(x, y)
       end
     end.sum
+  end
+
+  def debug
+    0.upto(49).each do |y|
+      0.upto(49).each do |x|
+        print is_pulled?(x, y) == 1 ? '#' : '.'
+      end
+      puts
+    end
+  end
+
+  def smallest_square
+    # Found with debug
+    # First continous point where is_pulled? true, doesn't constrict to one point
+    queue = [[4, 15]]
+
+    loop do
+      puts "queue_size/#{queue.size}, point/#{queue.first}" if $debug
+      queue = queue.flat_map { |pt| neighbors(pt) }.uniq
+      winners = queue.filter { |x, y| can_fit_square?(x, y) }
+      return calculate_answer(winners.first) if winners.any?
+    end
+  end
+
+  def calculate_answer(point)
+    x, y = point
+    10_000 * x + y
+  end
+
+  def neighbors(point)
+    x, y = point
+    [
+      [x+1, y],
+      [x, y+1],
+      # [x+1, y+1],
+    ].filter { |x, y| is_pulled?(x, y) == 1 }
+     .reject { |x, y| visited?(x, y) }
+  end
+
+  def visited?(x, y)
+    @visited ||= Set.new
+    return false unless @visited.include?([x,y])
+    @visited << [x,y]
+  end
+
+  def can_fit_square?(x, y)
+    @answer ||= {}
+    return @answer[[x,y]] if @answer[[x,y]]
+
+    @answer[[x,y]] = [
+      [x, y],
+      [x+99, y],
+      [x, y+99],
+    ].all? { |x, y| is_pulled?(x, y) == 1 }
+  end
+
+  def is_pulled?(x, y)
+    @grid ||= {}
+    return @grid[[x,y]] if @grid[[x,y]]
+    puts "Calculating (#{x},#{y}) dist/#{x+y} grid_size/#{@grid.size}" if $debug && @grid.size % 1000 == 0
+
+    points = @program.dup
+      .tap { |pgm| pgm.send_signal(x) }
+      .tap { |pgm| pgm.send_signal(y) }
+      .tap { |pgm| pgm.interpret! }
+      .receive_signals
+
+    raise "Unexpected output" unless points.size == 1
+
+    @grid[[x,y]] = points.first
   end
 
   class << self
@@ -30,7 +95,10 @@ class TractorBeam
 end
 
 def solve
-  TractorBeam.parse(@input).points
+  [
+    TractorBeam.parse(@input).points,
+    TractorBeam.parse(@input).smallest_square,
+  ]
 end
 
 @input = <<-input.strip
