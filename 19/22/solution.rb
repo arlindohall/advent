@@ -127,66 +127,47 @@ class Dealer
 end
 
 class FakeDealer
-  def initialize(instructions, cards, start = 2020, repititions = 1)
-    @instructions = instructions
-    @cards = cards
-    @start = start
-    @repititions = repititions
+
+  def initialize(input)
+    @input = input
+    @number_of_cards = 119315717514047
+    @shuffles = 101741582076661
   end
 
   # This one is double-stolen, because the guy I copied also copied someone
   # https://todd.ginsberg.com/post/advent-of-code/2019/day22/
-  # Got 53585064890592, too high
-  def deal
-    @factor, @addend = 1, 0
-    @instructions.reverse.each { |type, arg| follow_one(type, arg) }
-
-    @power = @factor.pow(@repititions, @cards)
-
-    final_position % @cards
-  end
-
-  def follow_one(type, arg)
-    case type
-    when :cut
-      @addend += arg
-    when :inc
-      val = arg.pow(@cards - 2, @cards)
-      @factor *= val
-      @addend *= val
-    when :deal
-      @factor = -@factor
-      @addend = -@addend - 1
+  def deal(find = 2020)
+    memory = [1, 0]
+    @input.reverse.each do |instruction|
+      type, arg = instruction
+      case type
+      when :cut
+          memory[1] += arg
+      when :inc
+          arg.pow(@number_of_cards - 2, @number_of_cards).tap do |it|
+            memory[0] *= it
+            memory[1] *= it
+          end
+      when :deal
+          memory[0] = memory[0] *= -1
+          memory[1] += 1
+          memory[1] *= -1
+      end
+      memory[0] %= @number_of_cards
+      memory[1] %= @number_of_cards
     end
-    @factor %= @cards
-    @addend %= @cards
-  end
-
-  def final_position
-    factor_term + (addition_term * mod_term)
-  end
-
-  private
-
-  def factor_term
-    @power * @start
-  end
-
-  def addition_term
-    @addend * (@power + @cards - 1)
-  end
-
-  def mod_term
-    @factor.pow(@cards - 2, @cards)
+    power = memory[0].pow(@shuffles, @number_of_cards)
+    return (
+      (power * find) + 
+      ((memory[1] * (power + (@number_of_cards - 1))) * 
+        (((memory[0] - 1)).pow(@number_of_cards - 2, @number_of_cards)))
+    ) % @number_of_cards
   end
 
   class << self
-    def parse(text, size = 119315717514047, start = 2020, repititions = 101741582076661)
+    def parse(text)
       new(
         text.lines.map { |line| parse_line(line) },
-        size,
-        start,
-        repititions,
       )
     end
 
