@@ -46,18 +46,16 @@ class Network
     @computers.each { _1.continue! }
   end
 
-  # 23094 is too high
-  # 24950 is too high
   def send_waiting
-    # puts "Waiting, trying no_data signal (-1)"
+    unless @nat.memory.empty?
+      @nat.wake_up(@computers[0])
+      @computers.each_with_index { |c, i| continue!(c, i) }
+      return
+    end
+
+    puts "Skipping NAT because not memory" if @nat.memory.empty?
     @computers.each { _1.send_signal(-1) }
     @computers.each_with_index { |c, i| continue!(c, i) }
-
-    return unless @computers.all? { _1.reading? }
-    puts "Skipping NAT because not memory" if @nat.memory.empty?
-    return if @nat.memory.empty?
-
-    @nat.wake_up(@computers[0])
   end
 
   def continue!(computer, number)
@@ -122,13 +120,18 @@ class Nat
     @memory = memory
   end
 
+  # 21458 too low
   def wake_up(computer)
     x, y = @memory
     raise "Invalid packet (#{{x:, y:}})" unless x && y
 
-    puts "Waiting, engage NAT, memory#{{x:, y:}}"
-    throw(:nat) if @last_y == y
-    @last_y = y
+    @ys ||= []
+    @ys << y
+    # idk, what if I just print the smallest repeated?
+    puts @ys.group_by(&:itself).filter { _2.size > 1 }.keys.min
+    # puts "Waiting, engage NAT, memory#{{x:, y:}}"
+    # throw(:nat) if @last_y == y
+    # @last_y = y
 
     computer.send_signal(x)
     computer.send_signal(y)
