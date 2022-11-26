@@ -15,29 +15,39 @@ class Network
   def run_nat
     startup
     catch(:nat) do ; loop do
-      send_waiting if @computers.all? { _1.reading? }
+      send_waiting if deadlocked?
 
       @computers.each_with_index { |c, i| continue!(c, i) }
-      write_to_nat
     end ; end
 
     return @nat.memory.last
   end
 
-  def write_to_nat
-    @write_buffer[255] ||= []
-    @write_buffer[255].each { |pack| @nat.receive(pack) }
-    @write_buffer[255] = []
-  end
-
   def run
     startup
     loop do
-      send_waiting if @computers.all? { _1.reading? }
+      send_waiting if deadlocked?
 
       @computers.each_with_index { |c, i| continue!(c, i) }
-      return @write_buffer[255].first.last if @write_buffer[255]
+      return @nat.memory.last unless @nat.memory.empty?
     end
+  end
+
+  def idle?
+    @computers.all? { _1.reading? }
+  end
+
+  def deadlocked?
+    return false unless idle?
+
+    2.times do |i|
+      @computers.each_with_index { |c, i| continue!(c, i) }
+      idle = self.idle?
+      # puts "Deadlocked after sending -1? #{{idle:, i:}}"
+      return false if !idle
+    end
+
+    true
   end
 
   def startup
@@ -47,14 +57,12 @@ class Network
   end
 
   def send_waiting
-    unless @nat.memory.empty?
-      @nat.wake_up(@computers[0])
-      @computers.each_with_index { |c, i| continue!(c, i) }
-      return
+    if @nat.memory.empty?
+      puts "Skipping NAT because not memory"
+      raise "Ending because deadlocked"
     end
 
-    puts "Skipping NAT because not memory" if @nat.memory.empty?
-    @computers.each { _1.send_signal(-1) }
+    @nat.wake_up(@computers[0])
     @computers.each_with_index { |c, i| continue!(c, i) }
   end
 
@@ -99,11 +107,19 @@ class Network
 
     @read_buffer[number].each_slice(3) do |slice|
       @read_buffer[number] = slice if slice.size < 3
-      break if slice.size < 3
+      if slice.size < 3
+        @read_buffer[number] = slice
+        break
+      end
 
       dest, x, y = slice
       @write_buffer[dest] ||= []
-      @write_buffer[dest] << [x,y]
+
+      if dest == 255
+        @nat.receive([x, y])
+      else
+        @write_buffer[dest] << [x,y]
+      end
     end
   end
 
@@ -125,13 +141,9 @@ class Nat
     x, y = @memory
     raise "Invalid packet (#{{x:, y:}})" unless x && y
 
-    @ys ||= []
-    @ys << y
-    # idk, what if I just print the smallest repeated?
-    puts @ys.group_by(&:itself).filter { _2.size > 1 }.keys.min
-    # puts "Waiting, engage NAT, memory#{{x:, y:}}"
-    # throw(:nat) if @last_y == y
-    # @last_y = y
+    puts "Waiting, engage NAT, memory/#{{x:, y:}}"
+    throw(:nat) if @last_y == y
+    @last_y = y
 
     computer.send_signal(x)
     computer.send_signal(y)
