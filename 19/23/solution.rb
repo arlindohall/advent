@@ -39,20 +39,16 @@ class Network
 
   def deadlocked?
     return false unless idle?
+    return true if @write_buffer.all? { |_, v| v.empty? }
 
-    2.times do |i|
-      @computers.each_with_index { |c, i| continue!(c, i) }
-      idle = self.idle?
-      # puts "Deadlocked after sending -1? #{{idle:, i:}}"
-      return false if !idle
-    end
-
-    true
+    false
   end
 
   def startup
     @computers.each { _1.start! }
     @computers.each_with_index { |c, i| c.send_signal(i) }
+    @computers.each { _1.send_signal(-1) }
+    @computers.each { _1.continue! }
     @computers.each { _1.continue! }
   end
 
@@ -68,10 +64,8 @@ class Network
 
   def continue!(computer, number)
     if computer.reading?
-      # puts "Reading..."
       read_in(computer, number)
     elsif computer.writing?
-      # puts "Writing..."
       write_out(computer, number)
     elsif computer.done?
       raise "I don't think the computers should finish early"
@@ -83,13 +77,11 @@ class Network
 
   def read_in(computer, number)
     @write_buffer[number] ||= []
-    if @write_buffer[number].empty?
-      computer.send_signal(-1)
-    else
-      @write_buffer[number].shift.then do |x,y|
-        computer.send_signal(x)
-        computer.send_signal(y)
-      end
+    return if @write_buffer[number].empty?
+
+    @write_buffer[number].shift.then do |x,y|
+      computer.send_signal(x)
+      computer.send_signal(y)
     end
   end
 
@@ -99,6 +91,7 @@ class Network
     end
 
     signals = computer.receive_signals
+    raise "Not multiple of three" unless signals.size % 3 == 0
 
     @read_buffer[number] ||= []
     signals.each do |s|
@@ -106,21 +99,18 @@ class Network
     end
 
     @read_buffer[number].each_slice(3) do |slice|
-      @read_buffer[number] = slice if slice.size < 3
-      if slice.size < 3
-        @read_buffer[number] = slice
-        break
-      end
-
       dest, x, y = slice
-      @write_buffer[dest] ||= []
-
       if dest == 255
         @nat.receive([x, y])
-      else
-        @write_buffer[dest] << [x,y]
+        next
       end
+
+      raise "Invalid address" if dest > 50
+      @write_buffer[dest] ||= []
+      @write_buffer[dest] << [x,y]
     end
+
+    @read_buffer[number] = []
   end
 
   class << self
