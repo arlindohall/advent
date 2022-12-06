@@ -10,7 +10,7 @@ class Object
 end
 
 class IntcodeProgram
-  attr_reader :text
+  attr_reader :text, :state, :inputs, :outputs
 
   OPCODES = {
     1 =>            :add,
