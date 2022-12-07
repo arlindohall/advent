@@ -83,7 +83,10 @@ class Repl
   end
 
   def run(commands)
-    run_once(commands) && return unless commands.empty?
+    unless commands.empty?
+      run_once(commands)
+      exit $?.exitstatus
+    end
 
     puts "Starting REPL for #{problem.to_s}"
     loop do
@@ -95,7 +98,7 @@ class Repl
 
   attr_reader :problem
 
-  def run_once
+  def run_once(commands)
     system(%Q(ruby -e 'require "#{problem.solution_file}" ; #{commands.join(" ")}'))
   end
 
