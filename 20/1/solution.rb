@@ -1,4 +1,11 @@
 
+def solve
+  [
+    ExpenseReport.parse(@input).product,
+    ExpenseReport.parse(@input).second_product,
+  ]
+end
+
 class ExpenseReport
   attr_reader :list
   def initialize(list)
