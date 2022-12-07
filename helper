@@ -105,13 +105,13 @@ class Repl
 end
 
 case ARGV[0]
-when "current", nil
+when "current", "c", nil
   puts Problem.current.to_s
-when "next"
+when "next", "n"
   puts Problem.next.to_s
-when "repl"
+when "repl", "r"
   Repl.run(ARGV[1..])
-when "day", "create"
+when "day", "d", "create", "cr"
   Problem.next.create_file
 else
   puts "Error: invalid argument #{ARGV.join(" ")}"
