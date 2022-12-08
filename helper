@@ -26,9 +26,11 @@ class Problem
     pathname.mkpath
     solution_file.write("")
     system("open #{solution_file}")
+    download_input
   end
 
   def download_input
+    pathname.mkpath
     input_file.write(input)
   end
 
@@ -135,7 +137,6 @@ when "input", "i"
   Problem.current.download_input
 when "day", "d", "create", "cr"
   Problem.next.create_file
-  Problem.next.download_input
 else
   puts "Error: invalid argument #{ARGV.join(" ")}"
   puts "Usage -> helper (current|next|repl|create)"
