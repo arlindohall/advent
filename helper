@@ -28,6 +28,10 @@ class Problem
     system("open #{solution_file}")
   end
 
+  def download_input
+    input_file.write(input)
+  end
+
   def current?
     exists? && !self.next.exists?
   end
@@ -70,6 +74,19 @@ class Problem
 
   def next_year
     Problem.new(year + 1, 1)
+  end
+
+  def input_file
+    pathname.join("input")
+  end
+
+  def input
+    %x(curl https://adventofcode.com/20#{year}/day/#{day}/input \
+      -H 'cookie: #{cookie}')
+  end
+
+  def cookie
+    pathname.parent.parent.join(".cookie").read
   end
 end
 
@@ -114,8 +131,11 @@ when "next", "n"
   puts Problem.next.to_s
 when "repl", "r"
   Repl.run(ARGV[1..])
+when "input", "i"
+  Problem.current.download_input
 when "day", "d", "create", "cr"
   Problem.next.create_file
+  Problem.next.download_input
 else
   puts "Error: invalid argument #{ARGV.join(" ")}"
   puts "Usage -> helper (current|next|repl|create)"
