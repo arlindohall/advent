@@ -15,6 +15,8 @@ when "input", "i"
   Problem.current.download_input
 when "day", "d", "create", "cr"
   Problem.next.create_file
+when "example", "e"
+  Problem.current.paste_example
 else
   puts "Error: invalid argument #{ARGV.join(" ")}"
   puts "Usage -> helper (current|next|repl|create)"

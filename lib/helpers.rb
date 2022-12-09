@@ -40,6 +40,11 @@ class Problem
     input_file.write(input)
   end
 
+  def paste_example
+    pathname.mkpath
+    example_file.write($stdin.read)
+  end
+
   def current?
     exists? && !self.next.exists?
   end
@@ -50,6 +55,10 @@ class Problem
 
   def input_file
     pathname.join("input.txt")
+  end
+
+  def example_file
+    pathname.join("example.txt")
   end
 
   def next
