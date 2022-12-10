@@ -1,6 +1,5 @@
 
 class Search < Struct.new(:paths, :slope)
-  # 2772403200 too high??
   def product
     all_trees.reduce(&:*)
   end
@@ -39,18 +38,50 @@ class Sled < Struct.new(:right, :down, :slope)
   end
 
   def path
-    1.upto(slope.height-1)
-      .map { |y| [right * y, y] }
+    @path ||= count_by(rows, down).map { |y, idx| [right * idx, y] }
   end
 
-  def self.from(text)
-    Sled.new(3, 1, Slope.from(text))
+  def count_by(rows, down)
+    result = []
+    idx = 0
+    1.upto(rows) do |i|
+      next if i % down != 0
+      idx += 1
+      result << [i, idx]
+    end
+    result
+  end
+
+  def debug
+    0.upto(rows) do |y|
+      # 0.upto(slope.period-1) do |x|
+      0.upto(rows * right) do |x|
+        if path.include?([x, y])
+          print slope.collide?(x, y) ? 'X' : 'O'
+        else
+          print slope.point(x, y)
+        end
+      end
+      puts
+    end
+  end
+
+  def rows
+    @rows ||= slope.height-1
+  end
+
+  def self.from(text, right: 3, down: 1)
+    Sled.new(right, down, Slope.from(text))
   end
 end
 
 class Slope < Struct.new(:graph)
   def collide?(x, y)
-    graph[y][x % period] == '#'
+    point(x, y) == '#'
+  end
+
+  def point(x, y)
+    graph[y][x % period]
   end
 
   def period
@@ -64,4 +95,11 @@ class Slope < Struct.new(:graph)
   def self.from(text)
     new(text.split("\n").map(&:chars))
   end
+end
+
+def solve
+  [
+    Sled.from(read_input).trees,
+    Search.from(read_input).product,
+  ]
 end
