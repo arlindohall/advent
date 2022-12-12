@@ -135,10 +135,18 @@ class Repl
   end
 
   def repl
-    %Q(irb -r "#{input_helper}" -r "#{problem.solution_file}")
+    %Q(irb -r "#{input_helper}" -r"#{arrays_helper}" -r "#{problem.solution_file}")
   end
 
   def input_helper
-    root_directory.join("lib").join("input.rb")
+    lib("input.rb")
+  end
+
+  def arrays_helper
+    lib("arrays.rb")
+  end
+
+  def lib(name)
+    root_directory.join("lib").join(name)
   end
 end
