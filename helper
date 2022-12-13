@@ -4,6 +4,26 @@
 require 'pathname'
 require_relative './lib/helpers.rb'
 
+def usage
+  puts "Usage -> helper [command] [input-file]?"
+  puts
+  puts "Optional commands: "
+  usage_command("current",          "c",  "Show current problem")
+  usage_command("current-input",    "ci", "Show current problem input file")
+  usage_command("current-example",  "ce", "Show current problem example file")
+  usage_command("next",             "n",  "Show next problem")
+  usage_command("repl",             "r",  "Run repl with optional input file")
+  usage_command("input",            "i",  "Download input file")
+  usage_command("day",              "d",  "Create file for next problem")
+  usage_command("create",           "cr", "Create file for next problem")
+  usage_command("example",          "e",  "Paste example to current problem file")
+  usage_command("help",             "h",  "Show this message")
+end
+
+def usage_command(name, short, message)
+  puts "  - #{name.ljust(16)} #{"(#{short})".ljust(4)} #{message}"
+end
+
 case ARGV[0]
 when "current", "c", nil
   puts Problem.current.to_s
@@ -21,7 +41,9 @@ when "day", "d", "create", "cr"
   Problem.next.create_file
 when "example", "e"
   Problem.current.paste_example
+when "help", "h"
+  usage
 else
   puts "Error: invalid argument #{ARGV.join(" ")}"
-  puts "Usage -> helper (current|next|repl|create)"
+  usage
 end
