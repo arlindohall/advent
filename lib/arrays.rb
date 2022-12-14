@@ -4,3 +4,9 @@ class Array
     !include?(value)
   end
 end
+
+class Hash
+  def exclude?(key)
+    !include?(key)
+  end
+end
