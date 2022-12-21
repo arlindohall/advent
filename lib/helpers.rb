@@ -57,8 +57,8 @@ class Problem
     pathname.join("input.txt")
   end
 
-  def example_file
-    pathname.join("example.txt")
+  def example_file(n = nil)
+    pathname.join("example#{n}.txt")
   end
 
   def next
