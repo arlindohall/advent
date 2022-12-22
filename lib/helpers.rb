@@ -42,7 +42,18 @@ class Problem
 
   def paste_example
     pathname.mkpath
-    example_file.write($stdin.read)
+    latest_example.write($stdin.read)
+  end
+
+  def latest_example
+    return example_file unless example_file.exist?
+
+    n = 1
+    while example_file(n).exist?
+      n += 1
+    end
+
+    example_file(n)
   end
 
   def current?
