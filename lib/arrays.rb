@@ -34,6 +34,10 @@ class Array
   def fourth  ; self[3] ; end
   def fifth   ; self[4] ; end
   def sixth   ; self[5] ; end
+
+  def product
+    reduce(&:*)
+  end
 end
 
 class Hash
