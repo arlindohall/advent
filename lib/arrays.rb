@@ -1,4 +1,6 @@
 
+$debug = true
+
 class Object
   def exclude?(value)
     !include?(value)
@@ -12,6 +14,11 @@ class Object
   def plopp
     p self
     self
+  end
+
+  def debug(*args, **kwargs)
+    args.plopp unless args.empty?
+    kwargs.plopp unless kwargs.empty?
   end
 end
 
@@ -37,6 +44,14 @@ class Array
 
   def product
     reduce(&:*)
+  end
+
+  def hash_by
+    collect { |v| [yield(v), v] }.to_h
+  end
+
+  def sub_map
+    map { |item| item.map { |sub_item| yield(sub_item) } }
   end
 end
 
