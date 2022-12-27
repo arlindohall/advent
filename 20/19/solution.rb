@@ -1,9 +1,14 @@
+$debug = false
 
 class SeaMonster < Struct.new(:text)
   def matching_messages
-    messages.count do |message|
-      matcher.produces.include?(message)
-    end
+    messages.count { |msg| matcher.matches?(msg) }
+  end
+
+  def updated!
+    matcher.rules[8] = Matcher::Rule.new("8: 42 | 42 8", matcher.rules)
+    matcher.rules[11] = Matcher::Rule.new("11: 42 31 | 42 11 31", matcher.rules)
+    self
   end
 
   def matcher
@@ -21,14 +26,8 @@ class SeaMonster < Struct.new(:text)
 end
 
 class Matcher < Struct.new(:definitions)
-  attr_reader :index
-
-  def produces
-    rules[0].produces
-  end
-
   def matches?(string)
-    @index = 0
+    rules[0].matches?(string, 0)
   end
 
   def rules
@@ -40,56 +39,42 @@ class Matcher < Struct.new(:definitions)
     @rules
   end
 
-  def debug_graph
-    puts "digraph {"
-    rules.values.each do |rule|
-      if rule.is_letter?
-        puts "  #{rule.number} -> #{rule.letter}"
-      else
-        rule.sub_rules.each do |subrule|
-          subrule_name = %("#{subrule.map(&:number)}")
-          puts "  #{rule.number} -> #{subrule_name}"
-          subrule.each do |individual_subrule|
-            puts "  #{subrule_name} -> #{individual_subrule.number}"
-          end
-        end
+  class Rule < Struct.new(:definition, :rule_mapping)
+    def matches?(string, index)
+      matches_at(string, index).include?(string.size)
+    end
+
+    def matches_at(string, index)
+      debug(message: "Matching string at index", number:, string:, index:)
+      return [] if index >= string.size
+      return match_letter(string, index) if is_letter?
+
+      sub_rules.flat_map do |sub_rule_group|
+        sub_group_matches(string, index, sub_rule_group)
+      end.uniq.plop
+    end
+
+    def match_letter(string, index)
+      string[index] == letter ? [index + 1] : []
+    end
+
+    def sub_group_matches(string, index, sub_rule_group)
+      raise "Need some rule to match" if sub_rule_group.empty?
+      matches = sub_rule_group.first.matches_at(string, index)
+
+      return matches unless sub_rule_group.size > 1
+
+      matches.flat_map do |match_index|
+        sub_group_matches(string, match_index, sub_rule_group.drop(1))
       end
     end
-    puts "}"
-  end
 
-  class Rule < Struct.new(:definition, :rule_mapping)
     def number
       definition.split(":").first.to_i
     end
 
     def match_part
       definition.split(": ").last
-    end
-
-    def produces
-      @produces ||= build_produced_strings
-    end
-
-    def build_produced_strings
-      return Set[letter] if is_letter?
-
-      debug(sub_rules_size: sub_rules.size)
-      i = 0
-      sub_rules.map do |sub_rule_group|
-        debug(index: i+=1)
-        produces_for_group([""], sub_rule_group).to_set.tap { _1.size.plop }
-      end.reduce(&:+)
-    end
-
-    def produces_for_group(produced, group)
-      debug(number:, produced_size: produced.size, group_size: group.size)
-      return produced if group.empty?
-
-      produces_for_group(
-        produced.flat_map { |str| group.first.produces.map { |pr| str + pr } }.to_set,
-        group.drop(1)
-      ).to_set
     end
 
     def sub_rules
@@ -110,4 +95,11 @@ class Matcher < Struct.new(:definitions)
       match_part.match(/[a-z]/).to_a.first
     end
   end
+end
+
+def solve
+  [
+    SeaMonster.new(read_input).matching_messages,
+    SeaMonster.new(read_input).updated!.matching_messages,
+  ]
 end

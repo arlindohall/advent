@@ -6,17 +6,26 @@ class Object
     !include?(value)
   end
 
+  def non_arrays_caller
+    caller.reject { |line| line.include?("advent/lib/arrays") }.first
+  end
+
   def plop
+    return self unless $debug
+    puts non_arrays_caller
     puts self
     self
   end
 
   def plopp
+    return self unless $debug
+    puts non_arrays_caller
     p self
     self
   end
 
   def debug(*args, **kwargs)
+    return unless $debug
     args.plopp unless args.empty?
     kwargs.plopp unless kwargs.empty?
   end
