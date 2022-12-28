@@ -10,7 +10,7 @@ class Object
     caller.reject { |line| line.include?("advent/lib/arrays") }.first
   end
 
-  def plop(prefix = "  ")
+  def plop(prefix = "")
     return self unless $debug
     puts non_arrays_caller
     puts non_arrays_caller.gsub(/./, "-")
@@ -19,7 +19,7 @@ class Object
     self
   end
 
-  def plopp(prefix = "  ")
+  def plopp(prefix = "")
     return self unless $debug
     puts non_arrays_caller
     puts non_arrays_caller.gsub(/./, "-")
@@ -75,6 +75,10 @@ class Array
 
   def hash_by
     collect { |v| [yield(v), v] }.to_h
+  end
+
+  def hash_by_value
+    collect { |v| [v, yield(v)] }.to_h
   end
 
   def sub_map
