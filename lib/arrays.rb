@@ -10,16 +10,20 @@ class Object
     caller.reject { |line| line.include?("advent/lib/arrays") }.first
   end
 
-  def plop
+  def plop(prefix = "  ")
     return self unless $debug
     puts non_arrays_caller
+    puts non_arrays_caller.gsub(/./, "-")
+    print prefix
     puts self
     self
   end
 
-  def plopp
+  def plopp(prefix = "  ")
     return self unless $debug
     puts non_arrays_caller
+    puts non_arrays_caller.gsub(/./, "-")
+    print prefix
     p self
     self
   end
@@ -28,6 +32,20 @@ class Object
     return unless $debug
     args.plopp unless args.empty?
     kwargs.plopp unless kwargs.empty?
+  end
+
+  def only!
+    assert_size!.first
+  end
+
+  def assert_size!(expected = 1)
+    assert!(size == expected, "Expected size #{expected} but got #{size}")
+  end
+
+  def assert!(condition, message = "")
+    tap {
+      raise message unless condition
+    }
   end
 end
 
@@ -62,6 +80,22 @@ class Array
   def sub_map
     map { |item| item.map { |sub_item| yield(sub_item) } }
   end
+
+  def matrix_rotate(times = 1)
+    return self if times % 4 == 0
+
+    transpose.map { |row| row.reverse }.matrix_rotate(times - 1)
+  end
+
+  def count_values
+    group_by(&:itself).transform_values(&:count)
+  end
+
+  def shape
+    return "#{size}x#{first.shape}" if first.is_a? Array
+
+    size.to_s
+  end
 end
 
 class Hash
@@ -72,5 +106,11 @@ class Hash
   def without!(x)
     delete(x)
     self
+  end
+end
+
+class String
+  def darken_squares
+    gsub("#", "█").gsub(".", " ")
   end
 end
