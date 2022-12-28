@@ -27,6 +27,8 @@ end
 case ARGV[0]
 when "current", "c"
   puts Problem.current.to_s
+when "open", "code", "o"
+  Problem.current.code
 when "current-input", "ci"
   puts Problem.current.input_file
 when "current-example", "ce"

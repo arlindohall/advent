@@ -31,8 +31,12 @@ class Problem
   def create_file
     pathname.mkpath
     solution_file.write("")
-    system("open #{solution_file}")
+    code
     download_input
+  end
+
+  def code
+    system("open #{solution_file}")
   end
 
   def download_input
