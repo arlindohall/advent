@@ -28,10 +28,17 @@ class Object
     self
   end
 
-  def debug(*args, **kwargs)
+  def debug(level = 'DEBUG', *args, **kwargs)
     return unless $debug
-    args.plopp unless args.empty?
-    kwargs.plopp unless kwargs.empty?
+
+    puts non_arrays_caller
+    puts non_arrays_caller.gsub(/./, "-")
+
+    print "  #{level}"
+    print " -> " unless args.empty? && kwargs.empty?
+    print args.map(&:inspect).join(", ") unless args.empty?
+    print kwargs unless kwargs.empty?
+    puts
   end
 
   def only!
