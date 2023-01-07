@@ -10,19 +10,19 @@ class Object
     caller.reject { |line| line.include?("advent/lib/arrays") }.first
   end
 
-  def plop(prefix = "")
+  def plop(prefix: "", show_header: true)
     return self unless $debug
-    puts non_arrays_caller
-    puts non_arrays_caller.gsub(/./, "-")
+    puts non_arrays_caller if show_header
+    puts non_arrays_caller.gsub(/./, "-") if show_header
     print prefix
     puts self
     self
   end
 
-  def plopp(prefix = "")
+  def plopp(prefix: "", show_header: true)
     return self unless $debug
-    puts non_arrays_caller
-    puts non_arrays_caller.gsub(/./, "-")
+    puts non_arrays_caller if show_header
+    puts non_arrays_caller.gsub(/./, "-") if show_header
     print prefix
     p self
     self
