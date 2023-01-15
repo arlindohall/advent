@@ -1,142 +1,103 @@
 $debug = false
 
+def solve
+  [CupCircle.new(read_input).game!, CupCircle.new(read_input).long_game!]
+end
+
 class CupCircle < Struct.new(:text)
-  def times(n)
-    cups
-    n.times { round }
+  attr_reader :next_cup, :current, :insert_point, :picked_up, :insert_after
 
-    collect_cups
+  def cups!
+    @current = text[0].to_i
+    @next_cup =
+      text
+        .chars
+        .each_with_index
+        .map { |ch, idx| [ch.to_i, text[(idx + 1) % text.size].to_i] }
+        .to_h
   end
 
-  def collect_cups
-    @head = @head.next_cup until @head.name == 1
-
-    str = ""
-    @head = @head.next_cup
-
-    until @head.name == 1
-      str << @head.name.to_s
-      @head = @head.next_cup
+  def one_million_cups!
+    @current = text[0].to_i
+    @next_cup = {}
+    text.chars.each_with_index do |ch, idx|
+      next_cup[ch.to_i] = text[(idx + 1) % text.size].to_i
     end
 
-    str
+    (text.size + 1).upto(1_000_000) { |i| next_cup[i] = i + 1 }
+
+    next_cup[text[-1].to_i] = text.size + 1
+    next_cup[1_000_000] = text[0].to_i
   end
 
-  def round
-    cups.to_s.plop
-    {destination:}.plopp(show_header: false)
-    insert
-    step
+  def game!(rounds = 100)
+    cups!
+    rounds.times { rotate }
+    next_eight
   end
 
-  def destination
-    @held, @dest = @head.destination
+  def long_game!(rounds = 10_000_000)
+    one_million_cups!
+    rounds.times do |i|
+      rotate
+      debug(i) if i % 100_000 == 0
+    end
+    product
   end
 
-  def insert
-    @held.next_cup.next_cup.next_cup = @dest.next_cup
-    @dest.next_cup = @held
+  def rotate
+    debug(next_eight:, next_cup:)
+    pick_up_cups
+    insert_cups
+    progress
   end
 
-  def step
-    @head = @head.next_cup
+  def pick_up_cups
+    @picked_up = [follow_cups(1), follow_cups(2), follow_cups(3)]
+    next_cup[current] = follow_cups(4)
   end
 
-  def cups
-    return @head if @head
-
-    @head = Cup.new(text[0].to_i)
-    @head.next_cup = @head
-
-    text.chars.drop(1).each do |cup|
-      init_insert_cup(Cup.new(cup.to_i))
+  def insert_cups
+    desired_insert = ((current - 2) % next_cup.size) + 1
+    until picked_up.exclude?(desired_insert)
+      desired_insert -= 2
+      desired_insert %= next_cup.size
+      desired_insert += 1
     end
 
-    @head
+    insert_before = follow_cups(1, desired_insert)
+    next_cup[desired_insert] = picked_up.first
+    next_cup[picked_up.last] = insert_before
+
+    debug(picked_up:, current:, desired_insert:, insert_before:)
   end
 
-  def one_million_cups
-    tap do
-      @head = Cup.new(text[0].to_i)
-      @head.next_cup = @head
-
-      text.chars.drop(1).each do |cup|
-        init_insert_cup(Cup.new(cup.to_i))
-      end
-
-      10.upto(1_000_000) do |i|
-        init_insert_cup(Cup.new(i))
-      end
-    end
-
-    10_000_000.times { |i| round ; puts i }
-
-    first_two
+  def progress
+    @current = follow_cups
   end
 
-  def first_two
-    find_one.then do |cup|
-      cup.next_cup.name * cup.next_cup.next_cup.name
+  def follow_cups(count = 1, insert_after = nil)
+    cursor = insert_after || current
+    count.times.map { cursor = next_cup[cursor] }
+
+    if cursor.nil?
+      raise "Got a nil cursor while following cups: #{{ insert_after: }}"
     end
+
+    cursor
   end
 
-  def find_one
-    cup = @head
-    cup = cup.next_cup until cup.name == 1
+  def next_eight
+    cursor = 1
+    output = []
+    8.times.map do
+      cursor = next_cup[cursor]
+      output << cursor.to_s
+    end
+    output.join
   end
 
-  def init_insert_cup(cup)
-    @dest ||= @head
-    cup.next_cup = @dest.next_cup
-    @dest.next_cup = cup
-    @dest = cup
-  end
-
-  class Cup < Struct.new(:name, :next_cup)
-    def destination
-      held = pick_up
-      c1, c2, c3 = held.name, held.next_cup.name, held.next_cup.next_cup.name
-
-      target_dest = name - 1
-      target_dest %= 9
-      target_dest = 9 if target_dest == 0
-      until [c1, c2, c3].exclude?(target_dest.plop(prefix: "target_dest: "))
-        target_dest -= 1
-        target_dest %= 9
-        target_dest = 9 if target_dest == 0
-      end
-
-      dest = self
-      until dest.name == target_dest
-        dest = dest.next_cup
-        raise "Infinite cycle" if dest == self
-        # break if dest == self
-      end
-
-      [held, dest]
-    end
-
-    def pick_up
-      held = next_cup
-      self.next_cup = held.next_cup.next_cup.next_cup
-      held.next_cup.next_cup.next_cup = nil
-
-      held
-    end
-
-    def inspect
-      "·#{self.to_s}·"
-    end
-
-    def to_s
-      str = "#{name} -> "
-      printing = next_cup
-      until printing == self || printing == nil
-        str << "#{printing.name} -> "
-        printing = printing.next_cup
-      end
-
-      str
-    end
+  def product
+    next_cup[1] * next_cup[next_cup[1]]
   end
 end
