@@ -19,7 +19,7 @@ class CupCircle < Struct.new(:text)
 
   def one_million_cups!
     @current = text[0].to_i
-    @next_cup = {}
+    @next_cup = {} # ArrayStore.new may be faster, idk?
     text.chars.each_with_index do |ch, idx|
       next_cup[ch.to_i] = text[(idx + 1) % text.size].to_i
     end
@@ -99,5 +99,25 @@ class CupCircle < Struct.new(:text)
 
   def product
     next_cup[1] * next_cup[next_cup[1]]
+  end
+
+  class ArrayStore
+    attr_reader :array
+
+    def initialize
+      @array = Array.new(1_000_000)
+    end
+
+    def [](idx)
+      array[idx - 1]
+    end
+
+    def []=(idx, val)
+      array[idx - 1] = val
+    end
+
+    def size
+      array.size
+    end
   end
 end
