@@ -1,4 +1,3 @@
-
 module RootDirectory
   protected
 
@@ -53,9 +52,7 @@ class Problem
     return example_file unless example_file.exist?
 
     n = 1
-    while example_file(n).exist?
-      n += 1
-    end
+    n += 1 while example_file(n).exist?
 
     example_file(n)
   end
@@ -109,8 +106,9 @@ class Problem
   end
 
   def input
-    %x(curl https://adventofcode.com/20#{year}/day/#{day}/input \
-      -H 'cookie: #{cookie}')
+    `curl https://adventofcode.com/20#{year}/day/#{day}/input \
+      --http1.1 \
+      -H 'cookie: #{cookie}'`
   end
 
   def cookie
@@ -136,9 +134,7 @@ class Repl
     end
 
     puts "Starting REPL for #{problem.to_s}"
-    loop do
-      return unless system(repl)
-    end
+    loop { return unless system(repl) }
   end
 
   private
@@ -146,7 +142,9 @@ class Repl
   attr_reader :problem
 
   def run_once(commands)
-    system(%Q(ruby -e 'require "#{problem.solution_file}" ; #{commands.join(" ")}'))
+    system(
+      %Q(ruby -e 'require "#{problem.solution_file}" ; #{commands.join(" ")}')
+    )
   end
 
   def repl
