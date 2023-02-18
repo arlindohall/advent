@@ -1,4 +1,3 @@
-
 $debug = true
 
 class Object
@@ -28,7 +27,7 @@ class Object
     self
   end
 
-  def debug(level = 'DEBUG', *args, **kwargs)
+  def debug(level = "DEBUG", *args, **kwargs)
     return unless $debug
 
     puts non_arrays_caller
@@ -42,6 +41,7 @@ class Object
   end
 
   def only!
+    return filter { |v| yield(v) }.only! if block_given?
     assert_size!.first
   end
 
@@ -50,9 +50,7 @@ class Object
   end
 
   def assert!(condition, message = "")
-    tap {
-      raise message unless condition
-    }
+    tap { raise message unless condition }
   end
 end
 
@@ -70,11 +68,21 @@ class Array
     self + [x]
   end
 
-  def second  ; self[1] ; end
-  def third   ; self[2] ; end
-  def fourth  ; self[3] ; end
-  def fifth   ; self[4] ; end
-  def sixth   ; self[5] ; end
+  def second
+    self[1]
+  end
+  def third
+    self[2]
+  end
+  def fourth
+    self[3]
+  end
+  def fifth
+    self[4]
+  end
+  def sixth
+    self[5]
+  end
 
   def product
     reduce(&:*)
