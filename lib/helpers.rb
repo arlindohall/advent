@@ -142,13 +142,20 @@ class Repl
   attr_reader :problem
 
   def run_once(commands)
-    system(
-      %Q(ruby -e 'require "#{problem.solution_file}" ; #{commands.join(" ")}')
-    )
+    system(%Q(ruby -e '#{run_once_requires} ; #{commands.join(" ")}'))
   end
 
   def repl
     %Q(irb -r "#{input_helper}" -r"#{arrays_helper}" -r "#{problem.solution_file}")
+  end
+
+  def run_once_requires
+    [
+      problem.solution_file,
+      input_helper,
+      arrays_helper,
+      "pathname"
+    ].map { |file| %Q(require "#{file}") }.join(" ; ")
   end
 
   def input_helper
