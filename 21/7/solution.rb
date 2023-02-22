@@ -1,3 +1,6 @@
+def solve =
+  [Crabs.parse(read_input).cost_of_min, Crabs.parse(read_input).inc_cost_of_min]
+
 class Crabs
   attr_reader :positions
   def initialize(positions)
