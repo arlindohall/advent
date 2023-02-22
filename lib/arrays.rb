@@ -115,6 +115,10 @@ class Array
 
     size.to_s
   end
+
+  def median
+    sort[size / 2]
+  end
 end
 
 class Hash
