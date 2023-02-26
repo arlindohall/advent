@@ -1,3 +1,8 @@
+def solve =
+  Polymer
+    .parse(read_input)
+    .then { |it| [it.most_minus_least, it.most_minus_least(40)] }
+
 class Polymer
   attr_reader :template, :rules
   def initialize(template, rules)
@@ -5,10 +10,14 @@ class Polymer
     @rules = rules
   end
 
-  def most_minus_least
+  def most_minus_least(n = 10)
     it = self
-    10.times { it = it.insert }
-    frequencies = it.template.count_values
+    n.times { it = it.insert }
+    frequencies =
+      it
+        .template
+        .group_by { |name, _count| name[0] }
+        .transform_values { |counts| counts.map(&:last).sum }
 
     frequencies.values.max - frequencies.values.min
   end
@@ -18,27 +27,30 @@ class Polymer
   end
 
   def update_template
-    updated = []
-    template.size.times do |idx|
-      updated << template[idx]
-      if rules.include?([template[idx], template[idx + 1]])
-        updated << rules[[template[idx], template[idx + 1]]]
+    template
+      .flat_map do |word, count|
+        if rules[word]
+          rules[word].map { |produce| [produce, count] }
+        else
+          [[word, count]]
+        end
       end
-    end
-
-    updated
+      .group_by(&:first)
+      .transform_values { |produced| produced.map(&:last).sum }
   end
 
   def self.parse(text)
     template, rules = text.split("\n\n")
 
     new(
-      template.chars,
+      template.size.times.map { |idx| template[idx..idx + 1] }.count_values,
       rules
         .split("\n")
         .map { |rl| rl.split(" -> ") }
+        .map do |word, produces|
+          [word, [word[0] + produces, produces + word[1]]]
+        end
         .to_h
-        .transform_keys(&:chars)
     )
   end
 end
