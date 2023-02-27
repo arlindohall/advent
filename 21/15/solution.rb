@@ -11,13 +11,47 @@ class RiskMap
     @risk_levels = risk_levels
   end
 
-  attr_reader :tracers
+  attr_reader :unvisited, :distances, :closeness
   def fastest_path
-    paths[[0, 0]] = 0
-    @tracers = [[0, 0]]
-    follow_tracer until tracers.empty?
+    @unvisited = risk_levels.keys.map.to_set
+    @distances = risk_levels.keys.map { |key| [key, Float::INFINITY] }.to_h
 
-    paths[max_x_y]
+    # Dijkstras, sped up by tracking nodes by distances
+    @closeness = { 0 => [[0, 0]] }
+    distances[[0, 0]] = 0
+
+    visit(closest) until distances[max_x_y] != Float::INFINITY
+
+    distances[max_x_y]
+  end
+
+  def closest
+    closeness[closeness.keys.min].filter { |node| unvisited.include?(node) }
+  end
+
+  def visit(nodes)
+    @i ||= 0
+    if (@i += 1) % 100 == 0
+      debug(
+        closest: closeness.keys.min,
+        closenesses: closeness.size,
+        unvisited: unvisited.size
+      )
+    end
+
+    closeness.delete(closeness.keys.min)
+    nodes.each do |node|
+      unvisited.delete(node)
+      neighbors(node)
+        .filter { |nb| unvisited.include?(nb) }
+        .each do |neighbor|
+          next if distances[node] + risk_levels[neighbor] >= distances[neighbor]
+          distances[neighbor] = distances[node] + risk_levels[neighbor]
+
+          closeness[distances[neighbor]] ||= []
+          closeness[distances[neighbor]] << neighbor
+        end
+    end
   end
 
   def full_map
@@ -44,40 +78,6 @@ class RiskMap
           end
       end
       .to_h
-  end
-
-  def follow_tracer
-    debug_trace
-
-    x, y = tracers.shift
-
-    neighbors([x, y]).each do |nx, ny|
-      dist_to_follow = paths[[x, y]] + risk_levels[[nx, ny]]
-
-      unless paths[[nx, ny]]
-        paths[[nx, ny]] = dist_to_follow
-        tracers << [nx, ny]
-        next
-      end
-
-      next if paths[[nx, ny]] <= dist_to_follow
-
-      paths[[nx, ny]] = dist_to_follow
-      tracers << [nx, ny]
-    end
-  end
-
-  def debug_trace
-    return unless $debug
-    @i ||= 0
-    if (@i += 1) % 1000 == 0
-      debug(
-        tracers: tracers.size,
-        paths: paths.size,
-        i: @i,
-        path: paths[max_x_y]
-      )
-    end
   end
 
   def neighbors(coord)
