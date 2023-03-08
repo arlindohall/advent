@@ -146,15 +146,17 @@ class Repl
   end
 
   def repl
-    %Q(irb -r "#{input_helper}" -r"#{arrays_helper}" -r "#{problem.solution_file}")
+    %Q(irb -r "#{input_helper}" -r"#{arrays_helper}" -r"#{objects_helper}" -r "#{problem.solution_file}" -r "pry")
   end
 
   def run_once_requires
     [
-      problem.solution_file,
       input_helper,
       arrays_helper,
-      "pathname"
+      objects_helper,
+      "pry",
+      "pathname",
+      problem.solution_file
     ].map { |file| %Q(require "#{file}") }.join(" ; ")
   end
 
@@ -164,6 +166,10 @@ class Repl
 
   def arrays_helper
     lib("arrays.rb")
+  end
+
+  def objects_helper
+    lib("objects.rb")
   end
 
   def lib(name)

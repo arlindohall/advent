@@ -1,59 +1,3 @@
-$debug = true
-
-class Object
-  def exclude?(value)
-    !include?(value)
-  end
-
-  def non_arrays_caller
-    caller.reject { |line| line.include?("advent/lib/arrays") }.first
-  end
-
-  def plop(prefix: "", show_header: true)
-    return self unless $debug
-    puts non_arrays_caller if show_header
-    puts non_arrays_caller.gsub(/./, "-") if show_header
-    print prefix
-    puts self
-    self
-  end
-
-  def plopp(prefix: "", show_header: true)
-    return self unless $debug
-    puts non_arrays_caller if show_header
-    puts non_arrays_caller.gsub(/./, "-") if show_header
-    print prefix
-    p self
-    self
-  end
-
-  def debug(level = "DEBUG", *args, **kwargs)
-    return unless $debug
-
-    puts non_arrays_caller
-    puts non_arrays_caller.gsub(/./, "-")
-
-    print "  #{level}"
-    print " -> " unless args.empty? && kwargs.empty?
-    print args.map(&:inspect).join(", ") unless args.empty?
-    print kwargs unless kwargs.empty?
-    puts
-  end
-
-  def only!
-    return filter { |v| yield(v) }.only! if block_given?
-    assert_size!.first
-  end
-
-  def assert_size!(expected = 1)
-    assert!(size == expected, "Expected size #{expected} but got #{size}")
-  end
-
-  def assert!(condition, message = "")
-    tap { raise message unless condition }
-  end
-end
-
 class Array
   def without(x)
     reject { |v| v == x }
@@ -129,17 +73,5 @@ class Hash
   def without!(x)
     delete(x)
     self
-  end
-end
-
-class String
-  def darken_squares
-    gsub("#", "█").gsub(".", " ")
-  end
-end
-
-class Numeric
-  def to(other)
-    self < other ? upto(other) : downto(other)
   end
 end
