@@ -13,7 +13,15 @@ class Projectile
     @y_max = y_max
   end
 
-  # Heights are triangle numbers
+  # Heights are triangle numbers and projectile will always
+  # revisit the height it's been to above zero, and the first
+  # step after zero will be -(initial_velocity + 1)
+  #
+  # Alternatively: all_initial_velocities
+  #   .map(&:second)
+  #   .uniq
+  #   .map { |y| triangle_sum(y) }
+  #   .max
   def max_height
     triangle_sum(max_velocity)
   end
