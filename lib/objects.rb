@@ -52,6 +52,21 @@ class Object
   def assert!(condition, message = "")
     tap { raise message unless condition }
   end
+
+  def assert_equals!(thing1, thing2, message = "")
+    tap { raise <<~assertion unless thing1 == thing2 }
+        #{message}:
+
+        expected
+
+        #{thing1}
+
+        to equal
+
+        #{thing2}
+
+        assertion
+  end
 end
 
 class Class
