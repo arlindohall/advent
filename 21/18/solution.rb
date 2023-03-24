@@ -1,4 +1,4 @@
-$debug = false
+$_debug = false
 
 class SnailfishNumber
   attr_reader :tokens
@@ -111,7 +111,7 @@ class SnailfishNumber
       .map { |line| parse(line) }
       .permutation(2)
       .map do |pair|
-        debug("Working permutations...", i:) if (i += 1) % 100 == 0
+        _debug("Working permutations...", i:) if (i += 1) % 100 == 0
         pair.reduce(&:+).magnitude
       end
       .max

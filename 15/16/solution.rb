@@ -1,6 +1,4 @@
 
-require 'debug'
-
 Ticker = Struct.new(:text)
 class Ticker
   def aunt_sue

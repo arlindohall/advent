@@ -1,8 +1,6 @@
-
-$debug = false
+$_debug = false
 
 class LinkedListQueue
-
   Node = Struct.new(:value, :next, :prev)
 
   attr_reader :head
@@ -61,7 +59,7 @@ class MarbleGame
   def play
     @turn, @player, @circle = 1, 0, LinkedListQueue.new(0)
     until @turn > @marbles
-      debug
+      _debug
       place_marble
       next_turn
     end
@@ -69,8 +67,8 @@ class MarbleGame
     @players.max
   end
 
-  def debug
-    puts "[#{(@player + 1).to_s}]".ljust(6) + "#{@circle.to_a}" if $debug
+  def _debug
+    puts "[#{(@player + 1).to_s}]".ljust(6) + "#{@circle.to_a}" if $_debug
   end
 
   def place_marble
@@ -89,14 +87,7 @@ class MarbleGame
   end
 end
 
-@example = [
-  [9, 25],
-  [10, 1618],
-  [13, 7999],
-  [17, 1104],
-  [21, 6111],
-  [30, 5807],
-]
+@example = [[9, 25], [10, 1618], [13, 7999], [17, 1104], [21, 6111], [30, 5807]]
 
-@input = [427, 70723]
-@part2 = [427, 70723 * 100]
+@input = [427, 70_723]
+@part2 = [427, 70_723 * 100]

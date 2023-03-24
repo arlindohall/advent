@@ -1,4 +1,3 @@
-
 ###########################################################
 ######################### INTCODE #########################
 ###########################################################
@@ -13,29 +12,29 @@ class IntcodeProgram
   attr_reader :text, :state, :inputs, :outputs
 
   OPCODES = {
-    1 =>            :add,
-    2 =>            :multiply,
-    3 =>            :read_value,
-    4 =>            :write_value,
-    5 =>            :jump_if_true,
-    6 =>            :jump_if_false,
-    7 =>            :less_than,
-    8 =>            :equals,
-    9 =>            :adjust_relative_base,
-    99 =>           :halt,
+    1 => :add,
+    2 => :multiply,
+    3 => :read_value,
+    4 => :write_value,
+    5 => :jump_if_true,
+    6 => :jump_if_false,
+    7 => :less_than,
+    8 => :equals,
+    9 => :adjust_relative_base,
+    99 => :halt
   }
 
   SIZE = {
-    multiply:               4,
-    add:                    4,
-    read_value:             2,
-    write_value:            2,
-    jump_if_true:           0,
-    jump_if_false:          0,
-    less_than:              4,
-    equals:                 4,
-    adjust_relative_base:   2,
-    halt:                   0,
+    multiply: 4,
+    add: 4,
+    read_value: 2,
+    write_value: 2,
+    jump_if_true: 0,
+    jump_if_false: 0,
+    less_than: 4,
+    equals: 4,
+    adjust_relative_base: 2,
+    halt: 0
   }
 
   def initialize(text)
@@ -59,13 +58,11 @@ class IntcodeProgram
     @ip, @rb = 0, 0
 
     loop do
-      until done? || paused?
-        step!
-      end
+      step! until done? || paused?
 
       return @outputs if done?
 
-      raise 'running through, cannot read' if reading?
+      raise "running through, cannot read" if reading?
 
       adjust_ip!
       @state = :running
@@ -76,9 +73,7 @@ class IntcodeProgram
     @state = :running
     @ip, @rb = 0, 0
 
-    until done? || paused?
-      step!
-    end
+    step! until done? || paused?
 
     @outputs if done?
   end
@@ -88,9 +83,7 @@ class IntcodeProgram
 
     @state = :running
 
-    until done? || paused?
-      step!
-    end
+    step! until done? || paused?
 
     @outputs if done?
   end
@@ -136,24 +129,30 @@ class IntcodeProgram
 
   def perform_opcode
     code = OPCODES[current]
-    # debug(code)
+    # _debug(code)
 
     raise "Unknown opcode #{@ip}, #{current}" unless code
     send(code)
     @ip += SIZE[code]
   end
 
-  def debug(code)
+  def _debug(code)
     print "\033[H"
-    @text.map{ |ch| print ch.to_s.rjust(5) }
+    @text.map { |ch| print ch.to_s.rjust(5) }
     puts
     [
-      'code=>', code,
-      'ip=>', @ip,
-      'rb=>', @rb,
-      'text=>', @text[@ip..@ip + SIZE[code] - 1],
-      'modes=>', modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
-      'outputs=>', @outputs,
+      "code=>",
+      code,
+      "ip=>",
+      @ip,
+      "rb=>",
+      @rb,
+      "text=>",
+      @text[@ip..@ip + SIZE[code] - 1],
+      "modes=>",
+      modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
+      "outputs=>",
+      @outputs
     ].each { |s| print s.to_s.ljust(25) }
     puts
   end
@@ -220,7 +219,7 @@ class IntcodeProgram
   end
 
   def parameters(count)
-    @text[@ip+1..@ip+count]
+    @text[@ip + 1..@ip + count]
       .zip(modes(count))
       .map { |value, mode| parameter(value, mode) }
   end
@@ -273,9 +272,7 @@ class IntcodeProgram
   end
 
   def modes(count)
-    1.upto(count).map { |shift|
-      (@text[@ip] / (10 ** (shift + 1))) % 10
-    }
+    1.upto(count).map { |shift| (@text[@ip] / (10**(shift + 1))) % 10 }
   end
 
   def current

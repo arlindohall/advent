@@ -1,7 +1,6 @@
+require_relative "../intcode"
 
-require_relative '../intcode'
-
-$debug = true
+$_debug = true
 
 class Map
   def initialize(machine)
@@ -13,7 +12,7 @@ class Map
     @search_states = @oxygen.start_over.neighbors
     until @search_states.empty?
       fill_next_state
-      debug
+      _debug
     end
 
     @distance
@@ -22,21 +21,21 @@ class Map
   def finish_map
     until @search_states.empty?
       search_next_state
-      debug
+      _debug
     end
   end
 
   def fill_next_state
     pop_state
-    return if location == ?# || location == ?O
+    return if location == "#" || location == "O"
     return unless fill_map
     queue_neighbors
   end
 
   def fill_map
     raise "Gone off map" unless location
-    raise "Already checked for walls" unless location == ?.
-    map[@current.location] = ?O
+    raise "Already checked for walls" unless location == "."
+    map[@current.location] = "O"
 
     @distance ||= 0
     raise "Going backwards" unless @distance <= @current.distance
@@ -52,7 +51,7 @@ class Map
     @search_states = [first_state]
     until @oxygen
       search_next_state
-      debug
+      _debug
     end
 
     @oxygen.distance
@@ -60,9 +59,9 @@ class Map
 
   def search_next_state
     pop_state
-    return if visited?          # shouldn't visit as already visited
-    return if update_map        # found oxygen, exit early
-    return if location == ?#    # found a wall, no neighbors
+    return if visited? # shouldn't visit as already visited
+    return if update_map # found oxygen, exit early
+    return if location == "#" # found a wall, no neighbors
     queue_neighbors
   end
 
@@ -77,7 +76,7 @@ class Map
 
   def update_map
     map[@current.location] = @current.probe
-    @oxygen = @current if location == 'O'
+    @oxygen = @current if location == "O"
   end
 
   def location
@@ -92,8 +91,8 @@ class Map
     @map ||= {}
   end
 
-  def debug
-    return unless $debug && @distance != @current.distance
+  def _debug
+    return unless $_debug && @distance != @current.distance
     minx, maxx = map.keys.map(&:first).minmax
     miny, maxy = map.keys.map(&:last).minmax
 
@@ -103,9 +102,7 @@ class Map
 
     print "\033[H"
     maxy.downto(miny) do |y|
-      minx.upto(maxx) do |x|
-        print map[[x,y]] || ' '
-      end
+      minx.upto(maxx) { |x| print map[[x, y]] || " " }
       puts
     end
     puts @distance
@@ -119,7 +116,7 @@ class Map
     def probe
       # Skip the first probe because it's always floor and computer
       # requires some movement
-      return '.' if location == [0,0]
+      return "." if location == [0, 0]
       machine.send_signal(direction)
       machine.start!
       signals = machine.receive_signals
@@ -131,9 +128,12 @@ class Map
 
     def translate(signal)
       case signal
-      when 0 ; then ?#
-      when 1 ; then ?.
-      when 2 ; then ?O
+      when 0
+        "#"
+      when 1
+        "."
+      when 2
+        "O"
       end
     end
 
@@ -147,7 +147,7 @@ class Map
         SearchState.new(machine.dup, [x, y + 1], distance + 1, 1), # N
         SearchState.new(machine.dup, [x, y - 1], distance + 1, 2), # S
         SearchState.new(machine.dup, [x + 1, y], distance + 1, 3), # E
-        SearchState.new(machine.dup, [x - 1, y], distance + 1, 4), # W
+        SearchState.new(machine.dup, [x - 1, y], distance + 1, 4) # W
       ]
     end
   end
@@ -155,10 +155,7 @@ end
 
 def solve
   map = Map.new(IntcodeProgram.parse(@input))
-  [
-    map.find_oxygen,
-    map.fill_oxygen,
-  ]
+  [map.find_oxygen, map.fill_oxygen]
 end
 
 @input = <<-program.strip

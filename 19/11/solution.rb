@@ -1,5 +1,4 @@
-
-$debug = false
+$_debug = false
 
 ###########################################################
 ######################### PAINTER #########################
@@ -14,12 +13,7 @@ class Painter
   end
 
   def dup
-    Painter.new(
-      @white_squares.dup,
-      @location.dup,
-      @direction,
-      @program.dup,
-    )
+    Painter.new(@white_squares.dup, @location.dup, @direction, @program.dup)
   end
 
   def solve
@@ -36,7 +30,7 @@ class Painter
       step
     end
 
-    debug
+    _debug
     @visited.count
   end
 
@@ -59,7 +53,7 @@ class Painter
     take_actions
     @program.continue
 
-    debug if $debug
+    _debug if $_debug
 
     self
   end
@@ -108,40 +102,57 @@ class Painter
   def move_forward
     x, y = @location
     case @direction
-    when 0    ; @location = [x, y - 1] # up
-    when 90   ; @location = [x + 1, y] # right
-    when 180  ; @location = [x, y + 1] # down
-    when 270  ; @location = [x - 1, y] # left
-    else      ; raise "Impossible direction when stepping: #{@direction}"
+    when 0
+      @location = [x, y - 1] # up
+    when 90
+      @location = [x + 1, y] # right
+    when 180
+      @location = [x, y + 1] # down
+    when 270
+      @location = [x - 1, y] # left
+    else
+      raise "Impossible direction when stepping: #{@direction}"
     end
   end
 
-  def debug
+  def _debug
     minx, maxx = all_points.map(&:first).minmax
     miny, maxy = all_points.map(&:last).minmax
 
-    minx -= 5 ; maxx += 5
-    miny -= 5 ; maxy += 5
+    minx -= 5
+    maxx += 5
+    miny -= 5
+    maxy += 5
 
-    puts miny.upto(maxy).map { |y|
-      minx.upto(maxx).map { |x|
-        if [x,y] == @location
-          cursor
-        elsif @white_squares.include?([x,y])
-          '#'
-        else
-          '.'
-        end
-      }.join
-    }.join("\n")
+    puts miny
+           .upto(maxy)
+           .map { |y|
+             minx
+               .upto(maxx)
+               .map do |x|
+                 if [x, y] == @location
+                   cursor
+                 elsif @white_squares.include?([x, y])
+                   "#"
+                 else
+                   "."
+                 end
+               end
+               .join
+           }
+           .join("\n")
   end
 
   def cursor
     case @direction
-    when 0      ; '^'
-    when 90     ; '>'
-    when 180    ; 'v'
-    when 270    ; '<'
+    when 0
+      "^"
+    when 90
+      ">"
+    when 180
+      "v"
+    when 270
+      "<"
     end
   end
 
@@ -155,7 +166,7 @@ class Painter
         Set.new, # sparse representation
         [0, 0],
         0,
-        IntcodeProgram.parse(program).dup,
+        IntcodeProgram.parse(program).dup
       )
     end
   end
@@ -175,29 +186,29 @@ class IntcodeProgram
   attr_reader :text
 
   OPCODES = {
-    1 =>            :add,
-    2 =>            :multiply,
-    3 =>            :read_value,
-    4 =>            :write_value,
-    5 =>            :jump_if_true,
-    6 =>            :jump_if_false,
-    7 =>            :less_than,
-    8 =>            :equals,
-    9 =>            :adjust_relative_base,
-    99 =>           :halt,
+    1 => :add,
+    2 => :multiply,
+    3 => :read_value,
+    4 => :write_value,
+    5 => :jump_if_true,
+    6 => :jump_if_false,
+    7 => :less_than,
+    8 => :equals,
+    9 => :adjust_relative_base,
+    99 => :halt
   }
 
   SIZE = {
-    multiply:               4,
-    add:                    4,
-    read_value:             2,
-    write_value:            2,
-    jump_if_true:           0,
-    jump_if_false:          0,
-    less_than:              4,
-    equals:                 4,
-    adjust_relative_base:   2,
-    halt:                   0,
+    multiply: 4,
+    add: 4,
+    read_value: 2,
+    write_value: 2,
+    jump_if_true: 0,
+    jump_if_false: 0,
+    less_than: 4,
+    equals: 4,
+    adjust_relative_base: 2,
+    halt: 0
   }
 
   def initialize(text)
@@ -221,13 +232,11 @@ class IntcodeProgram
     @ip, @rb = 0, 0
 
     loop do
-      until done? || paused?
-        step
-      end
+      step until done? || paused?
 
       return @outputs if done?
 
-      raise 'running through, cannot read' if reading?
+      raise "running through, cannot read" if reading?
 
       adjust_ip
       @state = :running
@@ -238,9 +247,7 @@ class IntcodeProgram
     @state = :running
     @ip, @rb = 0, 0
 
-    until done? || paused?
-      step
-    end
+    step until done? || paused?
 
     @outputs if done?
   end
@@ -250,9 +257,7 @@ class IntcodeProgram
 
     @state = :running
 
-    until done? || paused?
-      step
-    end
+    step until done? || paused?
 
     @outputs if done?
   end
@@ -298,21 +303,27 @@ class IntcodeProgram
 
   def perform_opcode
     code = OPCODES[current]
-    # debug(code)
+    # _debug(code)
 
     raise "Unknown opcode #{@ip}, #{current}" unless code
     send(code)
     @ip += SIZE[code]
   end
 
-  def debug(code)
+  def _debug(code)
     [
-      'code=>', code,
-      'ip=>', @ip,
-      'rb=>', @rb,
-      'text=>', @text[@ip..@ip + SIZE[code] - 1],
-      'modes=>', modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
-      'outputs=>', @outputs,
+      "code=>",
+      code,
+      "ip=>",
+      @ip,
+      "rb=>",
+      @rb,
+      "text=>",
+      @text[@ip..@ip + SIZE[code] - 1],
+      "modes=>",
+      modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
+      "outputs=>",
+      @outputs
     ].plop
     @text.plop
     puts
@@ -380,7 +391,7 @@ class IntcodeProgram
   end
 
   def parameters(count)
-    @text[@ip+1..@ip+count]
+    @text[@ip + 1..@ip + count]
       .zip(modes(count))
       .map { |value, mode| parameter(value, mode) }
   end
@@ -433,9 +444,7 @@ class IntcodeProgram
   end
 
   def modes(count)
-    1.upto(count).map { |shift|
-      (@text[@ip] / (10 ** (shift + 1))) % 10
-    }
+    1.upto(count).map { |shift| (@text[@ip] / (10**(shift + 1))) % 10 }
   end
 
   def current

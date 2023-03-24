@@ -1,4 +1,4 @@
-$debug = false
+$_debug = false
 
 def solve
   [CupCircle.new(read_input).game!, CupCircle.new(read_input).long_game!]
@@ -40,13 +40,13 @@ class CupCircle < Struct.new(:text)
     one_million_cups!
     rounds.times do |i|
       rotate
-      debug(i) if i % 100_000 == 0
+      _debug(i) if i % 100_000 == 0
     end
     product
   end
 
   def rotate
-    debug(next_eight:, next_cup:)
+    _debug(next_eight:, next_cup:)
     pick_up_cups
     insert_cups
     progress
@@ -69,7 +69,7 @@ class CupCircle < Struct.new(:text)
     next_cup[desired_insert] = picked_up.first
     next_cup[picked_up.last] = insert_before
 
-    debug(picked_up:, current:, desired_insert:, insert_before:)
+    _debug(picked_up:, current:, desired_insert:, insert_before:)
   end
 
   def progress

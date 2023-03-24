@@ -1,9 +1,8 @@
-$debug=false
+$_debug = false
 
-require_relative '../intcode'
+require_relative "../intcode"
 
 class ASCII
-
   # Gotten through experimentation
   SEGMENT1 = "R,10,L,8,R,10,R,4"
   SEGMENT2 = "L,6,L,6,R,10"
@@ -18,10 +17,11 @@ class ASCII
   end
 
   def initial_scaffold
-    @initial_scaffold ||= (
-      @program.interpret! ;
-      @program.receive_signals.pack('c*')
-    )
+    @initial_scaffold ||=
+      (
+        @program.interpret!
+        @program.receive_signals.pack("c*")
+      )
   end
 
   def scaffold
@@ -47,7 +47,7 @@ class ASCII
     # Why doesn't this work when I send 'n'?
 
     signals = machine.receive_signals
-    puts signals.filter { |s| s < 128 }.pack('c*')
+    puts signals.filter { |s| s < 128 }.pack("c*")
     return signals.last.plop
   end
 
@@ -65,7 +65,7 @@ class ASCII
     puts input
 
     input.chars.each { |ch| machine.send_signal(ch.ord) }
-    machine.interpret!(debug: true)
+    machine.interpret!(_debug: true)
 
     # Why doesn't this work when I send 'n'?
     # signals =  machine.receive_signals
@@ -93,7 +93,7 @@ class ASCII
 
     until machine.done?
       machine.send_signal(read_char_wtf) if machine.reading?
-      print machine.receive_signals.pack('c*') if machine.writing?
+      print machine.receive_signals.pack("c*") if machine.writing?
       machine.continue!
     end
   end
@@ -119,7 +119,7 @@ class ASCII
 
     until machine.done?
       machine.send_signal(read_char) if machine.reading?
-      print machine.receive_signals.pack('c*') if machine.writing?
+      print machine.receive_signals.pack("c*") if machine.writing?
       machine.continue!
     end
   end
@@ -133,7 +133,7 @@ class ASCII
   def program_input
     scaffold
       .path
-      .join(',')
+      .join(",")
       .gsub(SEGMENT1, "A")
       .gsub(SEGMENT2, "B")
       .gsub(SEGMENT3, "C")
@@ -160,9 +160,9 @@ class Scaffold
     return @path if @path
 
     @path = []
-    @vacuum = @map.keys.find { |x, y| @map[[x, y]] == '^' }
+    @vacuum = @map.keys.find { |x, y| @map[[x, y]] == "^" }
     while turn
-      debug
+      _debug
       @path << next_step
     end
 
@@ -170,8 +170,9 @@ class Scaffold
   end
 
   def turn
-    neighbors.reject { |point| coming_from?(point) }
-      .filter { |point| @map[point] == ?# }
+    neighbors
+      .reject { |point| coming_from?(point) }
+      .filter { |point| @map[point] == "#" }
       .tap { |list| raise "Cannot have multiple choices" unless list.size < 2 }
       .map { |point| to_direction(point) }
       .first
@@ -179,25 +180,22 @@ class Scaffold
 
   def neighbors
     x, y = @vacuum
-    [
-      [x+1,y],
-      [x-1,y],
-      [x,y+1],
-      [x,y-1],
-    ].filter { |point| @map[point] }
+    [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].filter do |point|
+      @map[point]
+    end
   end
 
   def coming_from?(point)
     x, y = @vacuum
     case @map[@vacuum]
-    when ?^
-      point == [x, y+1]
-    when ?>
-      point == [x-1, y]
-    when ?v
-      point == [x, y-1]
-    when ?<
-      point == [x+1, y]
+    when "^"
+      point == [x, y + 1]
+    when ">"
+      point == [x - 1, y]
+    when "v"
+      point == [x, y - 1]
+    when "<"
+      point == [x + 1, y]
     else
       raise "Not sure how to handle #{@map[@vacuum]} (loc=#{@vacuum})"
     end
@@ -206,7 +204,7 @@ class Scaffold
   def to_direction(point)
     x, y = @vacuum
     dx, dy = point
-    [dx-x, dy-y]
+    [dx - x, dy - y]
   end
 
   def next_step
@@ -221,68 +219,70 @@ class Scaffold
     old = @map[@vacuum]
 
     @map[@vacuum] = case dir
-    when [ 0, 1]    then ?v
-    when [ 0,-1]    then ?^
-    when [-1, 0]    then ?<
-    when [ 1, 0]    then ?>
+    when [0, 1]
+      "v"
+    when [0, -1]
+      "^"
+    when [-1, 0]
+      "<"
+    when [1, 0]
+      ">"
     else
       raise "Not sure how to turn #{dir}"
     end
 
     case [old, @map[@vacuum]]
-    when [?^, ?>], [?>, ?v], [?v, ?<], [?<, ?^] then 'R'
-    when [?^, ?<], [?<, ?v], [?v, ?>], [?>, ?^] then 'L'
+    when %w[^ >], %w[> v], %w[v <], %w[< ^]
+      "R"
+    when %w[^ <], %w[< v], %w[v >], %w[> ^]
+      "L"
     else
       raise "Impossible turn old=#{old} new=#{@map[@vacuum]}"
     end
   end
 
   def do_travel(dir)
-    x, y    = @vacuum
-    dx, dy  = dir
-    steps   = 0
+    x, y = @vacuum
+    dx, dy = dir
+    steps = 0
 
-    until @map[[x+dx, y+dy]] != ?#
+    until @map[[x + dx, y + dy]] != "#"
       x += dx
       y += dy
       steps += 1
     end
 
-    @map[[x,y]] = @map[@vacuum]
-    @map[@vacuum] = ?#
+    @map[[x, y]] = @map[@vacuum]
+    @map[@vacuum] = "#"
 
-    @vacuum = [x,y]
+    @vacuum = [x, y]
 
     steps
   end
 
   def alignment_parameters
-    intersections.map { |x,y| x * y }.sum
+    intersections.map { |x, y| x * y }.sum
   end
 
   def intersections
-    @map.keys.filter do |x,y|
-      all_neighbors_scaffold?(x,y)
-    end
+    @map.keys.filter { |x, y| all_neighbors_scaffold?(x, y) }
   end
 
-  def all_neighbors_scaffold?(x,y)
+  def all_neighbors_scaffold?(x, y)
     [
-      @map[[x,y]],
-      @map[[x+1,y]],
-      @map[[x-1,y]],
-      @map[[x,y+1]],
-      @map[[x,y-1]],
-    ].all? { |c| c == ?# }
+      @map[[x, y]],
+      @map[[x + 1, y]],
+      @map[[x - 1, y]],
+      @map[[x, y + 1]],
+      @map[[x, y - 1]]
+    ].all? { |c| c == "#" }
   end
 
-  def debug
-    return unless $debug
+  def _debug
+    return unless $_debug
     print "\033[H"
     0.upto(@ymax) do |y|
-      0.upto(@xmax).map do |x|
-        print @map[[x,y]] || '.'
-      end
+      0.upto(@xmax).map { |x| print @map[[x, y]] || "." }
       print "\n"
     end
   end
@@ -293,20 +293,17 @@ class Scaffold
 
   def self.hash_representation(text)
     hash = {}
-    text.split("\n").each_with_index do |line, y|
-      line.chars.each_with_index do |char, x|
-        hash[[x,y]] = char
+    text
+      .split("\n")
+      .each_with_index do |line, y|
+        line.chars.each_with_index { |char, x| hash[[x, y]] = char }
       end
-    end
     hash
   end
 end
 
 def solve
-  [
-    ASCII.parse(@input).scaffold.alignment_parameters,
-    ASCII.parse(@input).dust,
-  ]
+  [ASCII.parse(@input).scaffold.alignment_parameters, ASCII.parse(@input).dust]
 end
 
 @input = <<-text.strip
@@ -324,19 +321,17 @@ text
 map
 
 class IntcodeProgram
-  def interpret!(debug: false)
+  def interpret!(_debug: false)
     @state ||= :running # leave state alone so we can call recursively
     @ip, @rb = 0, 0
 
     loop do
-      until done? || paused?
-        step!
-      end
+      step! until done? || paused?
 
-      debug_vacuum_robot if debug
+      debug_vacuum_robot if _debug
       return @outputs if done?
 
-      raise 'running through, cannot read' if reading?
+      raise "running through, cannot read" if reading?
 
       adjust_ip!
       @state = :running
@@ -358,7 +353,7 @@ class IntcodeProgram
     if (@outputs.last || 0) > 128
       puts receive_signals.last
     else
-      print receive_signals.pack('c*')
+      print receive_signals.pack("c*")
     end
   end
 end

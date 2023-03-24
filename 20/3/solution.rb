@@ -1,4 +1,3 @@
-
 class Search < Struct.new(:paths, :slope)
   def product
     all_trees.reduce(&:*)
@@ -23,13 +22,14 @@ class Search < Struct.new(:paths, :slope)
         Direction.new(3, 1),
         Direction.new(5, 1),
         Direction.new(7, 1),
-        Direction.new(1, 2),
+        Direction.new(1, 2)
       ],
       Slope.from(text)
     )
   end
 
-  class Direction < Struct.new(:right, :down) ; end
+  class Direction < Struct.new(:right, :down)
+  end
 end
 
 class Sled < Struct.new(:right, :down, :slope)
@@ -52,12 +52,12 @@ class Sled < Struct.new(:right, :down, :slope)
     result
   end
 
-  def debug
+  def _debug
     0.upto(rows) do |y|
       # 0.upto(slope.period-1) do |x|
       0.upto(rows * right) do |x|
         if path.include?([x, y])
-          print slope.collide?(x, y) ? 'X' : 'O'
+          print slope.collide?(x, y) ? "X" : "O"
         else
           print slope.point(x, y)
         end
@@ -67,7 +67,7 @@ class Sled < Struct.new(:right, :down, :slope)
   end
 
   def rows
-    @rows ||= slope.height-1
+    @rows ||= slope.height - 1
   end
 
   def self.from(text, right: 3, down: 1)
@@ -77,7 +77,7 @@ end
 
 class Slope < Struct.new(:graph)
   def collide?(x, y)
-    point(x, y) == '#'
+    point(x, y) == "#"
   end
 
   def point(x, y)
@@ -98,8 +98,5 @@ class Slope < Struct.new(:graph)
 end
 
 def solve
-  [
-    Sled.from(read_input).trees,
-    Search.from(read_input).product,
-  ]
+  [Sled.from(read_input).trees, Search.from(read_input).product]
 end

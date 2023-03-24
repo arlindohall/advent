@@ -1,7 +1,7 @@
 def solve =
   [
     Paper.parse(read_input).fold.dots.size,
-    Paper.parse(read_input).fold_completely.debug
+    Paper.parse(read_input).fold_completely._debug
   ]
 
 class Paper
@@ -32,7 +32,7 @@ class Paper
     end
   end
 
-  def debug
+  def _debug
     xmin, xmax = dots.map(&:first).minmax
     ymin, ymax = dots.map(&:second).minmax
     ymin

@@ -1,4 +1,4 @@
-$debug = false
+$_debug = false
 
 def solve
   [

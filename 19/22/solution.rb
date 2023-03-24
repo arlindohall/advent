@@ -1,4 +1,3 @@
-
 class Deck
   Card = Struct.new(:value, :next)
   def initialize(cards, size)
@@ -59,11 +58,11 @@ class Deck
 
   def seek(n)
     ptr = @cards
-    (n-1).times { ptr = ptr.next }
+    (n - 1).times { ptr = ptr.next }
     ptr
   end
 
-  def debug
+  def _debug
     p to_array.map { |c| c&.value }
   end
 
@@ -79,12 +78,12 @@ class Deck
   end
 
   def self.of(n)
-    cards = 0.upto(n-1).map { |i| Card.new(i, nil) }
+    cards = 0.upto(n - 1).map { |i| Card.new(i, nil) }
     new(from_array(cards), n)
   end
 
   def self.from_array(ary)
-    ary.each_with_index { |c, idx| c.next = ary[idx+1] }
+    ary.each_with_index { |c, idx| c.next = ary[idx + 1] }
     ary.first
   end
 end
@@ -102,11 +101,8 @@ class Dealer
   end
 
   class << self
-    def parse(text, n = 10007)
-      new(
-        text.lines.map { |line| parse_line(line) },
-        Deck.of(n)
-      )
+    def parse(text, n = 10_007)
+      new(text.lines.map { |line| parse_line(line) }, Deck.of(n))
     end
 
     def parse_line(line)
@@ -127,11 +123,10 @@ class Dealer
 end
 
 class FakeDealer
-
   def initialize(input)
     @input = input
-    @number_of_cards = 119315717514047
-    @shuffles = 101741582076661
+    @number_of_cards = 119_315_717_514_047
+    @shuffles = 101_741_582_076_661
   end
 
   # This one is double-stolen, because the guy I copied also copied someone
@@ -142,33 +137,37 @@ class FakeDealer
       type, arg = instruction
       case type
       when :cut
-          memory[1] += arg
+        memory[1] += arg
       when :inc
-          arg.pow(@number_of_cards - 2, @number_of_cards).tap do |it|
+        arg
+          .pow(@number_of_cards - 2, @number_of_cards)
+          .tap do |it|
             memory[0] *= it
             memory[1] *= it
           end
       when :deal
-          memory[0] = memory[0] *= -1
-          memory[1] += 1
-          memory[1] *= -1
+        memory[0] = memory[0] *= -1
+        memory[1] += 1
+        memory[1] *= -1
       end
       memory[0] %= @number_of_cards
       memory[1] %= @number_of_cards
     end
     power = memory[0].pow(@shuffles, @number_of_cards)
-    return (
-      (power * find) + 
-      ((memory[1] * (power + (@number_of_cards - 1))) * 
-        (((memory[0] - 1)).pow(@number_of_cards - 2, @number_of_cards)))
-    ) % @number_of_cards
+    return(
+      (
+        (power * find) +
+          (
+            (memory[1] * (power + (@number_of_cards - 1))) *
+              (((memory[0] - 1)).pow(@number_of_cards - 2, @number_of_cards))
+          )
+      ) % @number_of_cards
+    )
   end
 
   class << self
     def parse(text)
-      new(
-        text.lines.map { |line| parse_line(line) },
-      )
+      new(text.lines.map { |line| parse_line(line) })
     end
 
     def parse_line(line)
@@ -190,19 +189,25 @@ end
 
 def fake_deal_whole_deck(instructions)
   ary = Array.new(10)
-  0.upto(9).each do |i|
-    next_idx = FakeDealer.parse(instructions, 10, i, 1).follow_instructions
-    ary[next_idx] = i
-  end
+  0
+    .upto(9)
+    .each do |i|
+      next_idx = FakeDealer.parse(instructions, 10, i, 1).follow_instructions
+      ary[next_idx] = i
+    end
   ary
 end
 
 def test
   examples = [
-    @example1, %w(0 3 6 9 2 5 8 1 4 7),
-    @example2, %w(3 0 7 4 1 8 5 2 9 6),
-    @example3, %w(6 3 0 7 4 1 8 5 2 9),
-    @example4, %w(9 2 5 8 1 4 7 0 3 6),
+    @example1,
+    %w[0 3 6 9 2 5 8 1 4 7],
+    @example2,
+    %w[3 0 7 4 1 8 5 2 9 6],
+    @example3,
+    %w[6 3 0 7 4 1 8 5 2 9],
+    @example4,
+    %w[9 2 5 8 1 4 7 0 3 6]
   ]
 
   examples.each_slice(2) do |input, expected|
@@ -220,10 +225,7 @@ def test
 end
 
 def solve
-  [
-    Dealer.parse(@input).deal.index(2019),
-    FakeDealer.parse(@input).deal
-  ]
+  [Dealer.parse(@input).deal.index(2019), FakeDealer.parse(@input).deal]
 end
 
 @example1 = <<-example

@@ -1,5 +1,4 @@
 
-require 'debug'
 
 RunLength = Struct.new(:count, :digit)
 NumberChain = Struct.new(:string_repr)

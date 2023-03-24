@@ -1,5 +1,4 @@
-
-$debug = false
+$_debug = false
 
 class Navigator < Struct.new(:text)
   def instructions
@@ -12,7 +11,7 @@ class Navigator < Struct.new(:text)
     self.direction ||= "E"
     instructions.each do |ins|
       self.location, self.direction = move(ins)
-      debug
+      _debug
     end
 
     location.map(&:abs).sum
@@ -46,10 +45,14 @@ class Navigator < Struct.new(:text)
 
   def change_in_location(direction, distance)
     case direction
-    when "N" then [0, distance]
-    when "S" then [0, -distance]
-    when "E" then [distance, 0]
-    when "W" then [-distance, 0]
+    when "N"
+      [0, distance]
+    when "S"
+      [0, -distance]
+    when "E"
+      [distance, 0]
+    when "W"
+      [-distance, 0]
     else
       raise "Unexpected direction #{direction}"
     end
@@ -58,8 +61,10 @@ class Navigator < Struct.new(:text)
   def new_direction(instruction)
     dir = direction
     case instruction.action
-    when "R" then instruction.turns.times { dir = turn_right(dir) }
-    when "L" then instruction.turns.times { dir = turn_left(dir) }
+    when "R"
+      instruction.turns.times { dir = turn_right(dir) }
+    when "L"
+      instruction.turns.times { dir = turn_left(dir) }
     end
 
     dir
@@ -67,24 +72,32 @@ class Navigator < Struct.new(:text)
 
   def turn_right(current_dir)
     case current_dir
-    when "N" then "E"
-    when "E" then "S"
-    when "S" then "W"
-    when "W" then "N"
+    when "N"
+      "E"
+    when "E"
+      "S"
+    when "S"
+      "W"
+    when "W"
+      "N"
     end
   end
 
   def turn_left(current_dir)
     case current_dir
-    when "N" then "W"
-    when "W" then "S"
-    when "S" then "E"
-    when "E" then "N"
+    when "N"
+      "W"
+    when "W"
+      "S"
+    when "S"
+      "E"
+    when "E"
+      "N"
     end
   end
 
-  def debug
-    return unless $debug
+  def _debug
+    return unless $_debug
     print location.first.positive? ? "east" : "west"
     print " #{location.first.abs}, "
     print location.last.positive? ? "north" : "south"
@@ -101,7 +114,7 @@ class WaypointNavigator < Navigator
     instructions.each do |ins|
       self.waypoint_location = move_waypoint(ins)
       self.location = move(ins)
-      debug
+      _debug
     end
 
     location.map(&:abs).sum
@@ -132,7 +145,7 @@ class WaypointNavigator < Navigator
     [x + dx, y + dy]
   end
 
-  # x -> -y; y -> x 
+  # x -> -y; y -> x
   # [1, 2]    -> [-2, 1]
   # [-2, 1]   -> [-1, -2]
   # [-1, -2]  -> [2, -1]
@@ -142,7 +155,6 @@ class WaypointNavigator < Navigator
     times.times { x, y = -y, x }
     [x, y]
   end
-
 
   # x -> y; y -> -x
   # [1, 2]   -> [2, -1]
@@ -155,8 +167,8 @@ class WaypointNavigator < Navigator
     [x, y]
   end
 
-  def debug
-    return unless $debug
+  def _debug
+    return unless $_debug
     print location.first.positive? ? "east" : "west"
     print " #{location.first.abs}, "
     print location.last.positive? ? "north" : "south"
@@ -184,8 +196,5 @@ class Instruction < Struct.new(:line)
 end
 
 def solve
-  [
-    Navigator.new(read_input).follow,
-    Navigator.new(read_input).waypoint.follow,
-  ]
+  [Navigator.new(read_input).follow, Navigator.new(read_input).waypoint.follow]
 end

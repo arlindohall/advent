@@ -1,4 +1,3 @@
-
 class Tape
   def initialize
     @negative = [0]
@@ -45,13 +44,16 @@ class TuringMachine
     @tape = Tape.new
   end
 
-  def exec(steps = 12794428)
+  def exec(steps = 12_794_428)
     @i = 0
-    steps.times { run; debug }
+    steps.times do
+      run
+      _debug
+    end
     @tape.checksum
   end
 
-  def debug
+  def _debug
     p @i if (@i += 1) % 100_000 == 0
   end
 

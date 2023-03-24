@@ -64,7 +64,7 @@ class OctopusGrid
     ]
   end
 
-  def debug
+  def _debug
     10.times do |y|
       10.times do |x|
         print " "

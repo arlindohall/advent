@@ -1,6 +1,4 @@
-
 class Maze
-
   def initialize(maze, x, y, start)
     @maze = maze
     @x, @y = x, y
@@ -14,8 +12,12 @@ class Maze
       # debug_recursive
       puts "layers/#{@layers.size} visited/#{@layers.size} queue/#{@queue.size}"
       raise "Outside outermost layer" if @queue.any? { |pt, depth| depth < 0 }
-      raise "Revisiting point" if @queue.any? { |pt, depth| visited_recursive?(loc: pt, depth: depth) }
-      @queue.each { |pt, depth| return @distance if depth == 0 && @maze[pt][:value] == 'ZZ' }
+      if @queue.any? { |pt, depth| visited_recursive?(loc: pt, depth: depth) }
+        raise "Revisiting point"
+      end
+      @queue.each do |pt, depth|
+        return @distance if depth == 0 && @maze[pt][:value] == "ZZ"
+      end
       @queue.each { |pt, depth| visit_recursive(depth: depth, loc: pt) }
       @queue = @queue.flat_map { |loc, depth| steps_recursive(loc, depth) }.uniq
       @distance += 1
@@ -24,9 +26,9 @@ class Maze
 
   def steps_recursive(loc, depth)
     case [@maze[loc][:type], @maze[loc][:location]]
-    when [:portal, :inner]
+    when %i[portal inner]
       neighbors_recursive(loc, depth) + portal_recursive(loc, depth)
-    when [:portal, :outer]
+    when %i[portal outer]
       neighbors_recursive(loc, depth) + portal_recursive(loc, depth)
     else
       neighbors_recursive(loc, depth)
@@ -36,14 +38,11 @@ class Maze
   def neighbors_recursive(loc, depth)
     return [] if depth < 0
     x, y = loc
-    [
-      [x-1, y],
-      [x+1, y],
-      [x, y-1],
-      [x, y+1],
-    ].filter { |x,y| @maze[[x,y]] }
-     .reject { |x,y| visited_recursive?(loc: [x,y], depth: depth) }
-     .map { |pt| [pt, depth] }
+    [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].filter do |x, y|
+        @maze[[x, y]]
+      end
+      .reject { |x, y| visited_recursive?(loc: [x, y], depth: depth) }
+      .map { |pt| [pt, depth] }
   end
 
   def visited_recursive?(loc:, depth:)
@@ -70,35 +69,36 @@ class Maze
     dest_portal = portal[:location]
 
     case [source_portal, dest_portal]
-    when [:inner, :inner]
+    when %i[inner inner]
       raise "Two inner portals"
-    when [:inner, :outer]
+    when %i[inner outer]
       depth + 1
-    when [:outer, :inner]
+    when %i[outer inner]
       depth - 1
-    when [:outer, :outer]
+    when %i[outer outer]
       raise "Two outer portals"
     end
   end
 
   def portals
-    @portals ||= @maze
-      .filter { |loc, point| point[:type] == :portal }
-      .to_a
-      .group_by { |loc, point| point[:value] }
-      # .tap { |portals| portals.values.each { |v| p v.sort_by { |t| t.last[:location] } } }
-      .transform_values do |points|
-        points.map { |loc, point| {}.merge(point).merge({coords: loc}) }
-      end
+    @portals ||=
+      @maze
+        .filter { |loc, point| point[:type] == :portal }
+        .to_a
+        .group_by { |loc, point| point[:value] }
+        # .tap { |portals| portals.values.each { |v| p v.sort_by { |t| t.last[:location] } } }
+        .transform_values do |points|
+          points.map { |loc, point| {}.merge(point).merge({ coords: loc }) }
+        end
   end
 
   def solve
     @queue = neighbors(@start)
     @distance = 1
     until @queue.empty?
-      # debug
+      # _debug
       puts "visited/#{@visited.size} queue/#{@queue.size}"
-      @queue.each { |pt| return @distance if @maze[pt][:value] == 'ZZ' }
+      @queue.each { |pt| return @distance if @maze[pt][:value] == "ZZ" }
       @queue.each { |pt| @visited[pt] = true }
       @queue = @queue.flat_map { |loc| steps(loc) }.uniq
       @distance += 1
@@ -116,16 +116,14 @@ class Maze
 
   def neighbors(loc)
     x, y = loc
-    [
-      [x-1, y],
-      [x+1, y],
-      [x, y-1],
-      [x, y+1],
-    ].filter { |x,y| @maze[[x,y]] && !visited?([x,y]) }
+    [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].filter do |x, y|
+      @maze[[x, y]] && !visited?([x, y])
+    end
   end
 
   def portal(loc)
-    @maze.keys
+    @maze
+      .keys
       .reject { |l| l == loc }
       .reject { |l| visited?(l) }
       .filter { |l| @maze[l][:value] == @maze[loc][:value] }
@@ -140,28 +138,28 @@ class Maze
     print "\033[H"
     0.upto(@y) do |y|
       0.upto(@x) do |x|
-        if visited_recursive?(loc: [x,y], depth: 0)
+        if visited_recursive?(loc: [x, y], depth: 0)
           print "x "
-        elsif !@maze[[x,y]]
-          print '  '
+        elsif !@maze[[x, y]]
+          print "  "
         else
-          print @maze[[x,y]][:value]
+          print @maze[[x, y]][:value]
         end
       end
       puts
     end
   end
 
-  def debug
+  def _debug
     print "\033[H"
     0.upto(@y) do |y|
       0.upto(@x) do |x|
-        if visited?([x,y])
+        if visited?([x, y])
           print "x "
-        elsif !@maze[[x,y]]
-          print '  '
+        elsif !@maze[[x, y]]
+          print "  "
         else
-          print @maze[[x,y]][:value]
+          print @maze[[x, y]][:value]
         end
       end
       puts
@@ -173,25 +171,21 @@ class Maze
       map = {}
       input = {}
       text.lines.each_with_index.map do |line, y|
-        line.chomp.chars.each_with_index.map do |char, x|
-          input[[x,y]] = char
-        end
+        line.chomp.chars.each_with_index.map { |char, x| input[[x, y]] = char }
       end
-
 
       @xmax = input.keys.map(&:first).max
       @ymax = input.keys.map(&:last).max
 
-      input.each do |(x,y), char|
-        map[[x,y]] = translate(char, [x,y], input) if is_space?(char)
+      input.each do |(x, y), char|
+        map[[x, y]] = translate(char, [x, y], input) if is_space?(char)
       end
 
-      Maze.new(map, @xmax, @ymax,
-               map.find { |_, v| v[:value] == 'AA' }.first)
+      Maze.new(map, @xmax, @ymax, map.find { |_, v| v[:value] == "AA" }.first)
     end
 
     def is_space?(char)
-      char == '.'
+      char == "."
     end
 
     def is_portal?(coords, input)
@@ -200,19 +194,17 @@ class Maze
 
     def names(coords, input)
       x, y = coords
-      names = [
-        [x-1, y],
-        [x+1, y],
-        [x, y-1],
-        [x, y+1],
-      ].filter { |(x,y)| input[[x,y]] =~ /[A-Z]/ }
+      names =
+        [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].filter do |(x, y)|
+          input[[x, y]] =~ /[A-Z]/
+        end
 
       names
     end
 
     def translate(char, coords, input)
       return portal(coords, input) if is_portal?(coords, input)
-      return {type: :space, value: ' .'}
+      return { type: :space, value: " ." }
     end
 
     def portal(coords, input)
@@ -221,7 +213,7 @@ class Maze
 
       {
         type: :portal,
-        value: portal_name([x,y], names_.first, input),
+        value: portal_name([x, y], names_.first, input),
         location: inner_outer(x, y)
       }
     end
@@ -257,10 +249,9 @@ begin
 end
 
 def test
-  [
-    Maze.parse(@example1).solve, 23,
-    Maze.parse(@example2).solve, 58,
-  ].each_slice(2) do |input, expected|
+  [Maze.parse(@example1).solve, 23, Maze.parse(@example2).solve, 58].each_slice(
+    2
+  ) do |input, expected|
     raise "Expected #{expected} but got #{input}" unless input == expected
   end
 
@@ -271,8 +262,5 @@ def test
 end
 
 def solve
-  [
-    Maze.parse(@input).solve,
-    Maze.parse(@input).solve_recursive,
-  ]
+  [Maze.parse(@input).solve, Maze.parse(@input).solve_recursive]
 end

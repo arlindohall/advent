@@ -1,4 +1,4 @@
-$debug = false
+$_debug = false
 
 def solve =
   RiskMap
@@ -32,7 +32,7 @@ class RiskMap
   def visit(nodes)
     @i ||= 0
     if (@i += 1) % 100 == 0
-      debug(
+      _debug(
         closest: closeness.keys.min,
         closenesses: closeness.size,
         unvisited: unvisited.size

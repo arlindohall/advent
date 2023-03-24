@@ -1,5 +1,4 @@
-
-$debug = true
+$_debug = true
 
 ###########################################################
 ######################### INTCODE #########################
@@ -15,29 +14,29 @@ class IntcodeProgram
   attr_reader :text
 
   OPCODES = {
-    1 =>            :add,
-    2 =>            :multiply,
-    3 =>            :read_value,
-    4 =>            :write_value,
-    5 =>            :jump_if_true,
-    6 =>            :jump_if_false,
-    7 =>            :less_than,
-    8 =>            :equals,
-    9 =>            :adjust_relative_base,
-    99 =>           :halt,
+    1 => :add,
+    2 => :multiply,
+    3 => :read_value,
+    4 => :write_value,
+    5 => :jump_if_true,
+    6 => :jump_if_false,
+    7 => :less_than,
+    8 => :equals,
+    9 => :adjust_relative_base,
+    99 => :halt
   }
 
   SIZE = {
-    multiply:               4,
-    add:                    4,
-    read_value:             2,
-    write_value:            2,
-    jump_if_true:           0,
-    jump_if_false:          0,
-    less_than:              4,
-    equals:                 4,
-    adjust_relative_base:   2,
-    halt:                   0,
+    multiply: 4,
+    add: 4,
+    read_value: 2,
+    write_value: 2,
+    jump_if_true: 0,
+    jump_if_false: 0,
+    less_than: 4,
+    equals: 4,
+    adjust_relative_base: 2,
+    halt: 0
   }
 
   def initialize(text)
@@ -61,13 +60,11 @@ class IntcodeProgram
     @ip, @rb = 0, 0
 
     loop do
-      until done? || paused?
-        step!
-      end
+      step! until done? || paused?
 
       return @outputs if done?
 
-      raise 'running through, cannot read' if reading?
+      raise "running through, cannot read" if reading?
 
       adjust_ip!
       @state = :running
@@ -78,9 +75,7 @@ class IntcodeProgram
     @state = :running
     @ip, @rb = 0, 0
 
-    until done? || paused?
-      step!
-    end
+    step! until done? || paused?
 
     @outputs if done?
   end
@@ -90,9 +85,7 @@ class IntcodeProgram
 
     @state = :running
 
-    until done? || paused?
-      step!
-    end
+    step! until done? || paused?
 
     @outputs if done?
   end
@@ -138,21 +131,27 @@ class IntcodeProgram
 
   def perform_opcode
     code = OPCODES[current]
-    # debug(code)
+    # _debug(code)
 
     raise "Unknown opcode #{@ip}, #{current}" unless code
     send(code)
     @ip += SIZE[code]
   end
 
-  def debug(code)
+  def _debug(code)
     [
-      'code=>', code,
-      'ip=>', @ip,
-      'rb=>', @rb,
-      'text=>', @text[@ip..@ip + SIZE[code] - 1],
-      'modes=>', modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
-      'outputs=>', @outputs,
+      "code=>",
+      code,
+      "ip=>",
+      @ip,
+      "rb=>",
+      @rb,
+      "text=>",
+      @text[@ip..@ip + SIZE[code] - 1],
+      "modes=>",
+      modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
+      "outputs=>",
+      @outputs
     ].plop
     @text.plop
     puts
@@ -220,7 +219,7 @@ class IntcodeProgram
   end
 
   def parameters(count)
-    @text[@ip+1..@ip+count]
+    @text[@ip + 1..@ip + count]
       .zip(modes(count))
       .map { |value, mode| parameter(value, mode) }
   end
@@ -273,9 +272,7 @@ class IntcodeProgram
   end
 
   def modes(count)
-    1.upto(count).map { |shift|
-      (@text[@ip] / (10 ** (shift + 1))) % 10
-    }
+    1.upto(count).map { |shift| (@text[@ip] / (10**(shift + 1))) % 10 }
   end
 
   def current
@@ -329,7 +326,7 @@ class Game
     loop do
       calculate_screen
       update_display
-      display_screen(skip: !$debug)
+      display_screen(skip: !$_debug)
       return if @program.done?
       play_move
     end
@@ -347,48 +344,52 @@ class Game
   end
 
   def calculate_screen
-    until @program.reading? || @program.done?
-      @program.continue!
-    end
+    @program.continue! until @program.reading? || @program.done?
   end
 
   def display_screen(skip: false)
     @score ||= "invalid: no score"
     @display ||= {}
 
-    @program.receive_signals.each_slice(3) { |x, y, value|
-      if [x,y] == [-1,0]
-        @score = value
-      else
-        @display[[x,y]] = value
+    @program
+      .receive_signals
+      .each_slice(3) do |x, y, value|
+        if [x, y] == [-1, 0]
+          @score = value
+        else
+          @display[[x, y]] = value
+        end
       end
-    }
 
     show_display unless skip
     puts @score unless skip
   end
 
   def show_display
-    minx,maxx = @display.keys.map(&:first).minmax
-    miny,maxy = @display.keys.map(&:last).minmax
+    minx, maxx = @display.keys.map(&:first).minmax
+    miny, maxy = @display.keys.map(&:last).minmax
 
     print "\033[H"
-    miny.upto(maxy) { |y|
-      minx.upto(maxx) { |x|
-        show_pixel([x,y])
-      }
+    miny.upto(maxy) do |y|
+      minx.upto(maxx) { |x| show_pixel([x, y]) }
       puts
-    }
+    end
   end
 
   def show_pixel(point)
     case @display[point]
-    when 0;           print " "
-    when 1;           print "#"
-    when 2;           print "H"
-    when 3;           print "_"
-    when 4;           print "o"
-    when nil;         print " "
+    when 0
+      print " "
+    when 1
+      print "#"
+    when 2
+      print "H"
+    when 3
+      print "_"
+    when 4
+      print "o"
+    when nil
+      print " "
     end
   end
 
@@ -410,7 +411,8 @@ class Game
   end
 
   def item_location(item)
-    @display.filter { |_,v| v == item } # {coords => item}
+    @display
+      .filter { |_, v| v == item } # {coords => item}
       .first # [coords, item]
       .first # coords
       .first # x
@@ -418,9 +420,9 @@ class Game
 
   def input_move
     case $stdin.getch
-    when ?j
+    when "j"
       @program.send_signal(-1)
-    when ?l
+    when "l"
       @program.send_signal(1)
     else # including the desired key, 'k'
       @program.send_signal(0)
@@ -431,18 +433,12 @@ class Game
   ### PART 1
 
   def count_block_tiles
-    @program.dup.interpret!
-      .each_slice(3)
-      .filter { |slice| slice[2] == 2 }
-      .count
+    @program.dup.interpret!.each_slice(3).filter { |slice| slice[2] == 2 }.count
   end
 end
 
 def solve
-  [
-    Game.run(@input).count_block_tiles,
-    Game.run(@input).play,
-  ]
+  [Game.run(@input).count_block_tiles, Game.run(@input).play]
 end
 
 @input = <<-program.strip

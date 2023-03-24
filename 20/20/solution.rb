@@ -1,8 +1,7 @@
-
 def solve
   [
     PhotoArray.new(read_input).border_product,
-    PhotoArray.new(read_input).roughness,
+    PhotoArray.new(read_input).roughness
   ]
 end
 
@@ -16,7 +15,7 @@ class PhotoArray < Struct.new(:text)
   end
 
   def roughness
-    picture_matrix.flatten.count { |ch| ch == '#' } - (monsters * monster_size)
+    picture_matrix.flatten.count { |ch| ch == "#" } - (monsters * monster_size)
   end
 
   # private
@@ -24,15 +23,14 @@ class PhotoArray < Struct.new(:text)
   attr_reader :grid_size, :full_image, :current_row, :remaining_photos
 
   def monsters
-    possible_final_images
-      .map { |image| count_monsters(image) }
-      .max
+    possible_final_images.map { |image| count_monsters(image) }.max
   end
 
   def picture_matrix
-    @picture_matrix ||= trimmed_arrangement
-      .map { |row| splice_columns(row) } # Array of arrays of rows
-      .flatten(1)       # 2D matrix of pixels
+    @picture_matrix ||=
+      trimmed_arrangement
+        .map { |row| splice_columns(row) } # Array of arrays of rows
+        .flatten(1) # 2D matrix of pixels
   end
 
   def trimmed_arrangement
@@ -42,18 +40,14 @@ class PhotoArray < Struct.new(:text)
 
   def trim_segment(segment)
     size = segment.size
-    # debug("trimming segment", size:, segment:)
-    segment
-      .take(size-1)
-      .drop(1)
-      .map do |row|
-        row.take(size-1).drop(1)
-      end
+    # _debug("trimming segment", size:, segment:)
+    segment.take(size - 1).drop(1).map { |row| row.take(size - 1).drop(1) }
   end
 
   def splice_columns(row)
     row.first.each_index.map do |index|
-      row.map { |sub_image| sub_image[index] } # same row in each sub-image
+      row
+        .map { |sub_image| sub_image[index] } # same row in each sub-image
         .reduce(&:+) # join rows together
     end
   end
@@ -67,9 +61,11 @@ class PhotoArray < Struct.new(:text)
   end
 
   def align
-    # debug(full_image_size: full_image.size, current_row_size: current_row.size,
+    # _debug(full_image_size: full_image.size, current_row_size: current_row.size,
     #   remaining_photo_size: remaining_photos.size)
-    raise "Wrong guard clause caught" if remaining_photos.empty? && current_row.empty?
+    if remaining_photos.empty? && current_row.empty?
+      raise "Wrong guard clause caught"
+    end
     return full_image.with(current_row) if remaining_photos.empty?
 
     if current_row.size == grid_size
@@ -92,26 +88,23 @@ class PhotoArray < Struct.new(:text)
   end
 
   def corner_for(full_image, remaining_photos)
-    # debug(full_image_size: full_image.size, remaining_photo_size: remaining_photos.size)
+    # _debug(full_image_size: full_image.size, remaining_photo_size: remaining_photos.size)
     return any_corner if full_image.empty?
 
     bs = full_image.last.first.last
 
-    photo = remaining_photos.filter do |photo|
-        photo.orientations.map(&:first)
-          .any? { |row| row == bs }
-      end
-      .only!
+    photo =
+      remaining_photos
+        .filter do |photo|
+          photo.orientations.map(&:first).any? { |row| row == bs }
+        end
+        .only!
 
-    orientation = photo
-      .orientations
-      .filter do |orientation|
-        orientation.first == bs
-      end
-      .only!
+    orientation =
+      photo.orientations.filter { |orientation| orientation.first == bs }.only!
 
-    return [photo, orientation]
-      # .plopp
+    return photo, orientation
+    # .plopp
   end
 
   def any_corner
@@ -119,44 +112,44 @@ class PhotoArray < Struct.new(:text)
   end
 
   def orient_first_corner(corner)
-    corner.orientations
+    corner
+      .orientations
       .filter { |ot| bottom_matches?(corner, ot) && right_matches?(corner, ot) }
       .first # will be exactly two, transpose of one another
   end
 
   def bottom_matches?(corner, orientation)
     bottom = orientation.last
-    photos.without(corner)
+    photos
+      .without(corner)
       .flat_map(&:borders)
       .any? { |border| border == bottom }
   end
 
   def right_matches?(corner, orientation)
     right = right_side(orientation)
-    photos.without(corner)
-      .flat_map(&:borders)
-      .any? { |border| border == right }
+    photos.without(corner).flat_map(&:borders).any? { |border| border == right }
   end
 
   def next_segment(current_row, remaining_photos)
     rs = right_side(current_row.last)
 
-    photo = remaining_photos.filter do |photo|
-        photo.orientations.map { |seg| top(seg) }
-          .any? { |row| row == rs }
-      end
-      .only!
+    photo =
+      remaining_photos
+        .filter do |photo|
+          photo.orientations.map { |seg| top(seg) }.any? { |row| row == rs }
+        end
+        .only!
 
-    orientation = photo
-      .orientations
-      .filter do |orientation|
-        left_side(orientation) == rs
-      end
-      .only!
-      # .then { |matrix| 3.times { matrix = matrix.matrix_rotate } ; matrix }
+    orientation =
+      photo
+        .orientations
+        .filter { |orientation| left_side(orientation) == rs }
+        .only!
+    # .then { |matrix| 3.times { matrix = matrix.matrix_rotate } ; matrix }
 
-    return [photo, orientation]
-      # .plopp
+    return photo, orientation
+    # .plopp
   end
 
   def right_side(segment)
@@ -188,22 +181,22 @@ class PhotoArray < Struct.new(:text)
       image.reverse.matrix_rotate(0),
       image.reverse.matrix_rotate(1),
       image.reverse.matrix_rotate(2),
-      image.reverse.matrix_rotate(3),
+      image.reverse.matrix_rotate(3)
     ]
   end
 
   def count_monsters(image)
-    image.each_index.flat_map do |y|
-      image[y].each_index.map do |x|
-        monster_at(x, y, image)
-      end
-    end.filter(&:itself).count
+    image
+      .each_index
+      .flat_map { |y| image[y].each_index.map { |x| monster_at(x, y, image) } }
+      .filter(&:itself)
+      .count
   end
 
   def monster_at(x, y, image)
-    # debug(shape: image.shape, pixel: image[y][x])
+    # _debug(shape: image.shape, pixel: image[y][x])
     monster_coords.all? do |mx, my|
-      image[my+y] && image[my+y][mx+x] == '#'
+      image[my + y] && image[my + y][mx + x] == "#"
     end
   end
 
@@ -211,17 +204,18 @@ class PhotoArray < Struct.new(:text)
     @monster ||= [
       "                  # ",
       "#    ##    ##    ###",
-      " #  #  #  #  #  #   ",
+      " #  #  #  #  #  #   "
     ]
   end
 
   def monster_coords
-    @monster_coords ||= monster.each_with_index.flat_map do |row, y|
-        row.chars.each_with_index.map do |ch, x|
-          [x,y] if ch == '#'
+    @monster_coords ||=
+      monster
+        .each_with_index
+        .flat_map do |row, y|
+          row.chars.each_with_index.map { |ch, x| [x, y] if ch == "#" }
         end
-      end
-      .compact
+        .compact
   end
 
   def monster_size
@@ -239,9 +233,7 @@ class PhotoArray < Struct.new(:text)
   def photos_bordering(n)
     photos.filter do |photo|
       borders = borders_except(photo)
-      photo.borders
-        .take(4)
-        .count { |bd| borders.include?(bd) } == n
+      photo.borders.take(4).count { |bd| borders.include?(bd) } == n
     end
   end
 
@@ -255,9 +247,7 @@ class PhotoArray < Struct.new(:text)
     end
 
     def metadata
-      full.split.second
-        .split(":").first
-        .to_i
+      full.split.second.split(":").first.to_i
     end
 
     def borders
@@ -273,11 +263,11 @@ class PhotoArray < Struct.new(:text)
         rotate(0, tile.reverse),
         rotate(1, tile.reverse),
         rotate(2, tile.reverse),
-        rotate(3, tile.reverse),
+        rotate(3, tile.reverse)
       ]
     end
 
-    def rotate(n, tiles=nil)
+    def rotate(n, tiles = nil)
       tiles ||= tile
       n.times { tiles = tiles.matrix_rotate }
 
@@ -289,10 +279,7 @@ class PhotoArray < Struct.new(:text)
     end
 
     def show!(rotations = 0)
-      puts rotate(rotations)
-        .sub_map(&:darken_squares)
-        .map(&:join)
-        .join("\n")
+      puts rotate(rotations).sub_map(&:darken_squares).map(&:join).join("\n")
     end
   end
 end

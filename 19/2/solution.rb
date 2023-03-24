@@ -1,10 +1,9 @@
-
 module IntcodeDebugger
-  def debug
+  def _debug
     @scanner = 0
     @section = :text
     until @scanner >= @text.size
-      puts current_set.join(',') + ','
+      puts current_set.join(",") + ","
       increment_scanner
     end
 
@@ -13,7 +12,7 @@ module IntcodeDebugger
 
   def current_set
     if @section == :text && @text[@scanner] != 99
-      @text[@scanner..@scanner+3]
+      @text[@scanner..@scanner + 3]
     elsif @section == :text && @text[@scanner] == 99
       @text[@scanner..@scanner]
     elsif @section == :data
@@ -59,9 +58,7 @@ class IntcodeProgram
   def find_inputs
     @noun, @verb = 0, 0
 
-    until found_inputs?
-      increment_inputs
-    end
+    increment_inputs until found_inputs?
 
     @noun * 100 + @verb
   end
@@ -69,10 +66,10 @@ class IntcodeProgram
   def found_inputs?
     # Check flipped because we never increment @verb more than @noun
     @verb, @noun = @noun, @verb
-    return true if prep(@noun, @verb).interpret.first == 19690720
+    return true if prep(@noun, @verb).interpret.first == 19_690_720
 
     @verb, @noun = @noun, @verb
-    prep(@noun, @verb).interpret.first.tap { |x| puts x } == 19690720
+    prep(@noun, @verb).interpret.first.tap { |x| puts x } == 19_690_720
   rescue TypeError
     # Failure due to overrun I think
     false
@@ -91,13 +88,11 @@ class IntcodeProgram
 
   def interpret
     @ip = 0
-    # debug
+    # _debug
 
-    until done?
-      step
-    end
+    step until done?
 
-    # debug
+    # _debug
     @text
   end
 
@@ -128,8 +123,7 @@ class IntcodeProgram
   end
 
   def operands
-    @text[@ip + 1..@ip + 2]
-      .map { |i| @text[i] }
+    @text[@ip + 1..@ip + 2].map { |i| @text[i] }
   end
 
   def target
@@ -159,16 +153,16 @@ end
 
 def test
   [
-    [@example1, [3500,9,10,70,2,3,11,0,99,30,40,50]],
-    [@example2, [2,0,0,0,99]],
-    [@example3, [2,3,0,6,99]],
-    [@example4, [2,4,4,5,99,9801]],
-    [@example5, [30,1,1,4,2,5,6,0,99]],
-  ].each { |program, state|
+    [@example1, [3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50]],
+    [@example2, [2, 0, 0, 0, 99]],
+    [@example3, [2, 3, 0, 6, 99]],
+    [@example4, [2, 4, 4, 5, 99, 9801]],
+    [@example5, [30, 1, 1, 4, 2, 5, 6, 0, 99]]
+  ].each do |program, state|
     ip = IntcodeProgram.parse(program)
     raise "FAIL" unless ip.interpret == state
-    ip.debug
-  }
+    ip._debug
+  end
 
   puts "PASS"
 end

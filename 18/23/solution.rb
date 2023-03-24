@@ -1,4 +1,3 @@
-
 class Teleporter
   attr_reader :nanobots
 
@@ -7,9 +6,13 @@ class Teleporter
   end
 
   def self.parse(text)
-    new(text.split("\n").map { |line|
-      Nanobot[*line.match(Nanobot::PATTERN).captures.map(&:to_i)]
-    })
+    new(
+      text
+        .split("\n")
+        .map do |line|
+          Nanobot[*line.match(Nanobot::PATTERN).captures.map(&:to_i)]
+        end
+    )
   end
 
   def solve
@@ -21,21 +24,18 @@ class Teleporter
   end
 
   def in_radius_of_bot(nanobot)
-    @nanobots.count { |other|
-      nanobot.in_range(other)
-    }
+    @nanobots.count { |other| nanobot.in_range(other) }
   end
 
   def point_in_radius(point)
-    @nanobots.count { |bot|
-      bot.in_range(point)
-    }
+    @nanobots.count { |bot| bot.in_range(point) }
   end
 
   def shortest_distance
-    best_box.all_points
+    best_box
+      .all_points
       .group_by { |point| point_in_radius(point) }
-      .max_by { |k,v| k }
+      .max_by { |k, v| k }
       .last # values with minimum radius
       .min_by { |point| point.distance(Nanobot::ORIGIN) }
       .tap { |point| p point }
@@ -47,14 +47,14 @@ class Teleporter
     initialize_box
 
     until cannot_subdivide?
-      debug
+      _debug
       @box = best_partition
     end
 
     @box
   end
 
-  def debug
+  def _debug
     p [@box]
   end
 
@@ -67,8 +67,9 @@ class Teleporter
   end
 
   def best_partition
-    partitions.group_by { |box| in_box(box) }
-      .max_by { |k,v| k }
+    partitions
+      .group_by { |box| in_box(box) }
+      .max_by { |k, v| k }
       .last
       .min_by { |box| box.distance(Nanobot::ORIGIN) }
   end
@@ -77,7 +78,7 @@ class Teleporter
     @distance = [
       @nanobots.map(&:x).map(&:abs).max,
       @nanobots.map(&:y).map(&:abs).max,
-      @nanobots.map(&:z).map(&:abs).max,
+      @nanobots.map(&:z).map(&:abs).max
     ]
   end
 
@@ -87,36 +88,37 @@ class Teleporter
   end
 
   def in_box(box)
-    @nanobots.count { |nanobot|
-      box.can_reach(nanobot)
-    }
+    @nanobots.count { |nanobot| box.can_reach(nanobot) }
   end
 end
 
 Box = Struct.new(:corners)
 class Box
   def center
-    @center ||= Nanobot.new(
-      corners.map(&:x).sum / corners.size,
-      corners.map(&:y).sum / corners.size,
-      corners.map(&:z).sum / corners.size,
-    )
+    @center ||=
+      Nanobot.new(
+        corners.map(&:x).sum / corners.size,
+        corners.map(&:y).sum / corners.size,
+        corners.map(&:z).sum / corners.size
+      )
   end
 
   def self.from_corners(first, second)
     x1, y1, z1 = first.values
     x2, y2, z2 = second.values
 
-    new([
-      Nanobot.new(x1, y1, z1),
-      Nanobot.new(x1, y1, z2),
-      Nanobot.new(x1, y2, z1),
-      Nanobot.new(x1, y2, z2),
-      Nanobot.new(x2, y1, z1),
-      Nanobot.new(x2, y1, z2),
-      Nanobot.new(x2, y2, z1),
-      Nanobot.new(x2, y2, z2),
-    ])
+    new(
+      [
+        Nanobot.new(x1, y1, z1),
+        Nanobot.new(x1, y1, z2),
+        Nanobot.new(x1, y2, z1),
+        Nanobot.new(x1, y2, z2),
+        Nanobot.new(x2, y1, z1),
+        Nanobot.new(x2, y1, z2),
+        Nanobot.new(x2, y2, z1),
+        Nanobot.new(x2, y2, z2)
+      ]
+    )
   end
 
   def all_points
@@ -124,33 +126,30 @@ class Box
     ymin, ymax = corners.map(&:y).minmax
     zmin, zmax = corners.map(&:z).minmax
 
-    xmin.upto(xmax).flat_map { |x|
-      ymin.upto(ymax).flat_map { |y|
-        zmin.upto(zmax).map { |z|
-          Nanobot.new(x, y, z, 0)
-        }
-      }
-    }
+    xmin
+      .upto(xmax)
+      .flat_map do |x|
+        ymin
+          .upto(ymax)
+          .flat_map { |y| zmin.upto(zmax).map { |z| Nanobot.new(x, y, z, 0) } }
+      end
   end
 
   def partition
-    corners.map { |corner|
-      self.class.from_corners(center, corner)
-    }
+    corners.map { |corner| self.class.from_corners(center, corner) }
   end
 
   def can_reach(nanobot)
-    contains?(nanobot) ||
-      can_reach_corner(nanobot) ||
-      can_reach_side(nanobot)
+    contains?(nanobot) || can_reach_corner(nanobot) || can_reach_side(nanobot)
   end
 
   def can_reach_corner(nanobot)
-    corners.any?{ |point| nanobot.in_range(point) }
+    corners.any? { |point| nanobot.in_range(point) }
   end
 
   def can_reach_side(nanobot)
-    [:x, :y, :z].filter { |axis| !in_axis(nanobot, axis) }
+    %i[x y z]
+      .filter { |axis| !in_axis(nanobot, axis) }
       .map { |axis| distance_on_axis(nanobot, axis) }
       .sum <= nanobot.r
   end
@@ -161,7 +160,7 @@ class Box
   end
 
   def contains?(nanobot)
-    [:x, :y, :z].all? { |axis| in_axis(nanobot, axis) }
+    %i[x y z].all? { |axis| in_axis(nanobot, axis) }
   end
 
   def distance(point)
@@ -183,11 +182,7 @@ class Nanobot
   end
 
   def distance(other)
-    [
-      (x - other.x),
-      (y - other.y),
-      (z - other.z),
-    ].map(&:abs).sum
+    [(x - other.x), (y - other.y), (z - other.z)].map(&:abs).sum
   end
 
   def distance_on_axis(other, axis)

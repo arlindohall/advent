@@ -1,19 +1,19 @@
-
 # 2678 too low
 # 3958 too high
-$debug = false
+$_debug = false
 
-Group = Struct.new(
-  :index,
-  :type,
-  :units,
-  :hp,
-  :weaknesses,
-  :immunities,
-  :attack,
-  :attack_type,
-  :initiative,
-)
+Group =
+  Struct.new(
+    :index,
+    :type,
+    :units,
+    :hp,
+    :weaknesses,
+    :immunities,
+    :attack,
+    :attack_type,
+    :initiative
+  )
 class Group
   attr_reader :target
 
@@ -25,12 +25,12 @@ class Group
     return @target = nil if targets.empty?
 
     # todo tie breaker
-    @target = targets.filter { |target|
-        damage_to(target) > 0
-      }
-      .sort_by { |target|
-        [-damage_to(target), -target.effective_power, -target.initiative]
-      }
+    @target =
+      targets
+        .filter { |target| damage_to(target) > 0 }
+        .sort_by do |target|
+          [-damage_to(target), -target.effective_power, -target.initiative]
+        end
 
     print_target_selection(targets)
 
@@ -61,11 +61,13 @@ class Group
   end
 
   def print_target_selection(targets)
-    return $debug unless $debug
+    return $_debug unless $_debug
 
-    targets.each { |t|
-      puts("#{type == :infection ? "Infection" : "Immune System"} group #{index + 1} would deal defending group #{t.index + 1} #{damage_to(t)} damage")
-    }
+    targets.each do |t|
+      puts(
+        "#{type == :infection ? "Infection" : "Immune System"} group #{index + 1} would deal defending group #{t.index + 1} #{damage_to(t)} damage"
+      )
+    end
   end
 end
 
@@ -77,11 +79,7 @@ class Battle
   end
 
   def deep_clone
-    self.class.new(
-      @immune_system.map(&:clone),
-      @infection.map(&:clone),
-      @boost,
-    )
+    self.class.new(@immune_system.map(&:clone), @infection.map(&:clone), @boost)
   end
 
   def boost(b)
@@ -114,7 +112,7 @@ class Battle
     boosted.immune_system_units
   end
 
-  def debug
+  def _debug
     @immune_system.map(&:attack) + @infection.map(&:attack)
   end
 
@@ -149,7 +147,7 @@ class Battle
 
   def fight
     select_targets
-    puts if $debug
+    puts if $_debug
 
     destroy_if_deadlocked
     attack
@@ -160,19 +158,17 @@ class Battle
     inf_targets = @immune_system.sort_by(&:index)
     is_targets = @infection.sort_by(&:index)
 
-    inf_groups.each_with_index { |group|
-      group.select_target(inf_targets)
-    }
-    is_groups.each_with_index { |group|
-      group.select_target(is_targets)
-    }
+    inf_groups.each_with_index { |group| group.select_target(inf_targets) }
+    is_groups.each_with_index { |group| group.select_target(is_targets) }
   end
 
   def attack
-    all_groups.sort_by { |group| -group.initiative }.each { |group|
-      print_attack(group)
-      attack_for(group)
-    }
+    all_groups
+      .sort_by { |group| -group.initiative }
+      .each do |group|
+        print_attack(group)
+        attack_for(group)
+      end
   end
 
   def attack_for(group)
@@ -206,9 +202,7 @@ class Battle
   end
 
   def sort_group(group)
-    group.sort_by { |group|
-      [-group.effective_power, -group.initiative]
-    }
+    group.sort_by { |group| [-group.effective_power, -group.initiative] }
   end
 
   def defeat?
@@ -219,45 +213,50 @@ class Battle
   # Printing
   ############################################################
   def print_attack(group)
-    return $debug unless $debug
-    return unless all_groups.include?(group) && all_groups.include?(group.target)
+    return $_debug unless $_debugg
+    unless all_groups.include?(group) && all_groups.include?(group.target)
+      return
+    end
 
     killed = [group.residual, group.target.units].min
     puts(
       (group.type == :infection ? "Infection" : "Immune System") +
-      " group #{group.index + 1} attacks defending " +
-      "group #{group.target.index + 1}, killing " +
-      "#{killed} unit" +
-      (killed == 1 ? "" : "s")
+        " group #{group.index + 1} attacks defending " +
+        "group #{group.target.index + 1}, killing " + "#{killed} unit" +
+        (killed == 1 ? "" : "s")
     )
   end
 
-
   def print_status
-    return $debug unless $debug
+    return $_debug unless $_debug
 
     puts("Immune System:")
-    if @immune_system.empty?
-      puts("No groups remain.")
-    end
+    puts("No groups remain.") if @immune_system.empty?
 
-    @immune_system.each_with_index { |group|
+    @immune_system.each_with_index do |group|
       puts("Group #{group.index + 1} contains #{group.units} units")
-    }
+    end
 
     puts("Infection:")
-    if @infection.empty?
-      puts("No groups remain.")
-    end
-    @infection.each_with_index { |group|
+    puts("No groups remain.") if @infection.empty?
+    @infection.each_with_index do |group|
       puts("Group #{group.index + 1} contains #{group.units} units")
-    }
+    end
   end
 
   def self.parse(text)
-    immune, infection = text.split("\n\n")
-      .map { |block| [block.split("\n").first[...-1].downcase.to_sym, block.split("\n").drop(1)] }
-      .map { |type, block| block.each_with_index.map { |line, idx| parse_group(type, line, idx) }}
+    immune, infection =
+      text
+        .split("\n\n")
+        .map do |block|
+          [
+            block.split("\n").first[...-1].downcase.to_sym,
+            block.split("\n").drop(1)
+          ]
+        end
+        .map do |type, block|
+          block.each_with_index.map { |line, idx| parse_group(type, line, idx) }
+        end
 
     new(immune, infection, 0)
   end
@@ -275,7 +274,17 @@ class Battle
 
     initiative = text.match(/initiative (\d+)/).captures.first.to_i
 
-    Group.new(index, type, units, hp, weaknesses, immunities, attack, attack_type, initiative)
+    Group.new(
+      index,
+      type,
+      units,
+      hp,
+      weaknesses,
+      immunities,
+      attack,
+      attack_type,
+      initiative
+    )
   end
 
   def self.properties(text, split_on)
@@ -283,11 +292,7 @@ class Battle
 
     return [] unless match
 
-    match.match(0)
-      .split("#{split_on} ")
-      .last
-      .split(", ")
-      .map(&:to_sym)
+    match.match(0).split("#{split_on} ").last.split(", ").map(&:to_sym)
   end
 end
 

@@ -1,4 +1,3 @@
-
 class Eris
   def initialize(grid = Set.new)
     @grid = grid
@@ -10,9 +9,7 @@ class Eris
 
   def biodiversity_rating
     score = 0
-    in_order do |i, x, y|
-      score |= 1 << i if bug?(x, y)
-    end
+    in_order { |i, x, y| score |= 1 << i if bug?(x, y) }
     score
   end
 
@@ -44,11 +41,11 @@ class Eris
   end
 
   def updated_grid
-    (points + neighbors).map do |x, y|
-      [x,y] if should_be_bug?(x, y)
-    end.compact
-       .filter { |x, y| in_bounds?(x, y) }
-       .to_set
+    (points + neighbors)
+      .map { |x, y| [x, y] if should_be_bug?(x, y) }
+      .compact
+      .filter { |x, y| in_bounds?(x, y) }
+      .to_set
   end
 
   def points
@@ -60,12 +57,7 @@ class Eris
   end
 
   def neighbors_of(x, y)
-    [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ]
+    [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]
   end
 
   def should_be_bug?(x, y)
@@ -73,13 +65,12 @@ class Eris
   end
 
   def bug_and_cozy?(x, y)
-    bug?(x, y) &&
-      neighbors_of(x, y).filter { |x, y| bug?(x, y) }.count == 1
+    bug?(x, y) && neighbors_of(x, y).filter { |x, y| bug?(x, y) }.count == 1
   end
 
   def empty_and_available?(x, y)
     !bug?(x, y) &&
-      [1,2].include?(neighbors_of(x, y).filter { |x, y| bug?(x, y) }.count)
+      [1, 2].include?(neighbors_of(x, y).filter { |x, y| bug?(x, y) }.count)
   end
 
   def in_bounds?(x, y)
@@ -87,14 +78,14 @@ class Eris
   end
 
   def bug?(x, y)
-    @grid.include?([x,y])
+    @grid.include?([x, y])
   end
 
-  def debug
+  def _debug
     0.upto(4) do |y|
       0.upto(4) do |x|
-        print '#' if bug?(x, y)
-        print '.' unless bug?(x, y)
+        print "#" if bug?(x, y)
+        print "." unless bug?(x, y)
       end
       puts
     end
@@ -103,11 +94,11 @@ class Eris
   class << self
     def parse(text)
       grid = Set.new
-      text.split("\n").each_with_index do |row, y|
-        row.chars.each_with_index do |ch, x|
-          grid << [x, y] if ch == '#'
+      text
+        .split("\n")
+        .each_with_index do |row, y|
+          row.chars.each_with_index { |ch, x| grid << [x, y] if ch == "#" }
         end
-      end
 
       new(grid)
     end
@@ -129,11 +120,11 @@ class ErisRecursive
   end
 
   def updated_grid
-    (points + neighbors).map do |level, x, y|
-      [level, x, y] if should_be_bug?(level, x, y)
-    end.compact
-       .filter { |_level, x, y| in_bounds?(x, y) }
-       .to_set
+    (points + neighbors)
+      .map { |level, x, y| [level, x, y] if should_be_bug?(level, x, y) }
+      .compact
+      .filter { |_level, x, y| in_bounds?(x, y) }
+      .to_set
   end
 
   def points
@@ -149,12 +140,7 @@ class ErisRecursive
   end
 
   def level_neighbrs_of(level, x, y)
-    [
-      [level, x + 1, y],
-      [level, x - 1, y],
-      [level, x, y + 1],
-      [level, x, y - 1],
-    ]
+    [[level, x + 1, y], [level, x - 1, y], [level, x, y + 1], [level, x, y - 1]]
   end
 
   def recursive_neighbors_of(level, x, y)
@@ -166,23 +152,23 @@ class ErisRecursive
     neighbors << [level + 1, 2, 3] if y == 4
 
     case [x, y]
-    when [2, 1] ; neighbors += level_down(level, :y, 0)
-    when [2, 3] ; neighbors += level_down(level, :y, 4)
-    when [1, 2] ; neighbors += level_down(level, :x, 0)
-    when [3, 2] ; neighbors += level_down(level, :x, 4)
+    when [2, 1]
+      neighbors += level_down(level, :y, 0)
+    when [2, 3]
+      neighbors += level_down(level, :y, 4)
+    when [1, 2]
+      neighbors += level_down(level, :x, 0)
+    when [3, 2]
+      neighbors += level_down(level, :x, 4)
     end
 
     neighbors
   end
 
   def level_down(level, axis, constant)
-    if axis == :x
-      return 0.upto(4).map { [level - 1, constant, _1] }
-    end
+    return 0.upto(4).map { [level - 1, constant, _1] } if axis == :x
 
-    if axis == :y
-      return 0.upto(4).map { [level - 1, _1, constant] }
-    end
+    return 0.upto(4).map { [level - 1, _1, constant] } if axis == :y
 
     raise "WTF axis=#{axis}"
   end
@@ -193,12 +179,18 @@ class ErisRecursive
 
   def bug_and_cozy?(level, x, y)
     bug?(level, x, y) &&
-      neighbors_of(level, x, y).filter { |level, x, y| bug?(level, x, y) }.count == 1
+      neighbors_of(level, x, y)
+        .filter { |level, x, y| bug?(level, x, y) }
+        .count == 1
   end
 
   def empty_and_available?(level, x, y)
     !bug?(level, x, y) &&
-      [1,2].include?(neighbors_of(level, x, y).filter { |level, x, y| bug?(level, x, y) }.count)
+      [1, 2].include?(
+        neighbors_of(level, x, y)
+          .filter { |level, x, y| bug?(level, x, y) }
+          .count
+      )
   end
 
   def in_bounds?(x, y)
@@ -211,11 +203,11 @@ class ErisRecursive
     @grid.include?([level, x, y])
   end
 
-  def debug
+  def _debug
     0.upto(4) do |y|
       0.upto(4) do |x|
-        print '#' if bug?(x, y)
-        print '.' unless bug?(x, y)
+        print "#" if bug?(x, y)
+        print "." unless bug?(x, y)
       end
       puts
     end
@@ -224,11 +216,11 @@ class ErisRecursive
   class << self
     def parse(text)
       grid = Set.new
-      text.split("\n").each_with_index do |row, y|
-        row.chars.each_with_index do |ch, x|
-          grid << [0, x, y] if ch == '#'
+      text
+        .split("\n")
+        .each_with_index do |row, y|
+          row.chars.each_with_index { |ch, x| grid << [0, x, y] if ch == "#" }
         end
-      end
 
       new(grid)
     end
@@ -247,7 +239,7 @@ end
 #....
 bugs
 
-@input =  <<-bugs.strip
+@input = <<-bugs.strip
 #..#.
 .....
 .#..#

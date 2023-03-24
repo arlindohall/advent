@@ -1,4 +1,4 @@
-$debug = true
+$_debug = true
 
 class Nanofactory
   Ingredient = Struct.new(:amount, :name)
@@ -19,7 +19,7 @@ class Nanofactory
   end
 
   def possible_fuel
-    small = goal/dup.fuel
+    small = goal / dup.fuel
     large = goal
     mid = (small + large) / 2
     binary_search(small, mid, large)
@@ -63,9 +63,14 @@ class Nanofactory
 
     # how many times to run the production of `name`
     needed = needed(name, amount)
-    factor = needed % unit_of(name) == 0 ?
-      needed / unit_of(name) :
-      needed / unit_of(name) + 1
+    factor =
+      (
+        if needed % unit_of(name) == 0
+          needed / unit_of(name)
+        else
+          needed / unit_of(name) + 1
+        end
+      )
 
     source(name, factor)
     produce(name, factor)
@@ -93,13 +98,14 @@ class Nanofactory
     end
   end
 
-
   def consume(name, amount)
     return use_ore(amount) if name == "ORE"
 
     leftovers[name] ||= 0
 
-    raise "Don't have enough #{name} (#{leftovers[name]}/#{amount})" unless leftovers[name] >= amount
+    unless leftovers[name] >= amount
+      raise "Don't have enough #{name} (#{leftovers[name]}/#{amount})"
+    end
     leftovers[name] -= amount
   end
 
@@ -107,7 +113,7 @@ class Nanofactory
     return if factor == 0
 
     amount = factor * unit_of(name)
-    debug(name, amount)
+    _debug(name, amount)
 
     leftovers[name] ||= 0
     leftovers[name] += factor * unit_of(name)
@@ -128,8 +134,8 @@ class Nanofactory
     @ore_used += amount
   end
 
-  def debug(name, amount)
-    return unless $debug
+  def _debug(name, amount)
+    return unless $_debug
 
     puts "Making #{amount} #{name}, have #{leftovers[name]}"
   end
@@ -137,7 +143,8 @@ class Nanofactory
   class << self
     def parse(text)
       new(
-        text.strip
+        text
+          .strip
           .split("\n")
           .map { |line| line.split(" => ") }
           .map { |inputs, output| [inputs.split(", "), output] }
@@ -153,10 +160,7 @@ class Nanofactory
       inputs = inputs.map { |input| Ingredient.new(*input.split(" ")) }
       inputs.each { |ingredient| ingredient.amount = ingredient.amount.to_i }
 
-      [
-        output.name,
-        Combination.new(inputs, output),
-      ]
+      [output.name, Combination.new(inputs, output)]
     end
   end
 end
@@ -165,29 +169,28 @@ def test
   [
     [@example1, 31],
     [@example2, 165],
-    [@example3, 13312],
-    [@example4, 180697],
-    [@example5, 2210736],
-  ]
-  .map { |ex, exp| [Nanofactory.parse(ex).fuel, exp] }
-  .each { |val, exp| raise "Part 1: Expected #{exp} got #{val}" unless val == exp }
+    [@example3, 13_312],
+    [@example4, 180_697],
+    [@example5, 2_210_736]
+  ].map { |ex, exp| [Nanofactory.parse(ex).fuel, exp] }
+    .each do |val, exp|
+      raise "Part 1: Expected #{exp} got #{val}" unless val == exp
+    end
 
   [
-    [@example3, 82892753],
-    [@example4, 5586022],
-    [@example5, 460664],
-  ]
-  .map { |ex, exp| [Nanofactory.parse(ex).possible_fuel, exp] }
-  .each { |val, exp| raise "Part 2: Expected #{exp} got #{val}" unless val == exp }
+    [@example3, 82_892_753],
+    [@example4, 5_586_022],
+    [@example5, 460_664]
+  ].map { |ex, exp| [Nanofactory.parse(ex).possible_fuel, exp] }
+    .each do |val, exp|
+      raise "Part 2: Expected #{exp} got #{val}" unless val == exp
+    end
 
   :success
 end
 
 def solve
-  [
-    Nanofactory.parse(@input).fuel,
-    Nanofactory.parse(@input).possible_fuel,
-  ]
+  [Nanofactory.parse(@input).fuel, Nanofactory.parse(@input).possible_fuel]
 end
 
 @example1 = <<-fuel

@@ -1,4 +1,4 @@
-$debug = false
+$_debug = false
 
 class SeaMonster < Struct.new(:text)
   def matching_messages
@@ -16,8 +16,7 @@ class SeaMonster < Struct.new(:text)
   end
 
   def definitions
-    text.split("\n\n").first
-      .split("\n")
+    text.split("\n\n").first.split("\n")
   end
 
   def messages
@@ -33,7 +32,8 @@ class Matcher < Struct.new(:definitions)
   def rules
     return @rules if @rules
     @rules = {}
-    definitions.map { |df| Rule.new(df, @rules) }
+    definitions
+      .map { |df| Rule.new(df, @rules) }
       .each { |rl| @rules[rl.number] = rl }
 
     @rules
@@ -45,13 +45,16 @@ class Matcher < Struct.new(:definitions)
     end
 
     def matches_at(string, index)
-      debug(message: "Matching string at index", number:, string:, index:)
+      _debug(message: "Matching string at index", number:, string:, index:)
       return [] if index >= string.size
       return match_letter(string, index) if is_letter?
 
-      sub_rules.flat_map do |sub_rule_group|
-        sub_group_matches(string, index, sub_rule_group)
-      end.uniq.plop
+      sub_rules
+        .flat_map do |sub_rule_group|
+          sub_group_matches(string, index, sub_rule_group)
+        end
+        .uniq
+        .plop
     end
 
     def match_letter(string, index)
@@ -78,13 +81,11 @@ class Matcher < Struct.new(:definitions)
     end
 
     def sub_rules
-      sub_rule_indices
-        .sub_map { |ri| rule_mapping[ri] }
+      sub_rule_indices.sub_map { |ri| rule_mapping[ri] }
     end
 
     def sub_rule_indices
-      match_part.split("|").map(&:split)
-        .map { |sr| sr.map(&:to_i) }
+      match_part.split("|").map(&:split).map { |sr| sr.map(&:to_i) }
     end
 
     def is_letter?
@@ -100,6 +101,6 @@ end
 def solve
   [
     SeaMonster.new(read_input).matching_messages,
-    SeaMonster.new(read_input).updated!.matching_messages,
+    SeaMonster.new(read_input).updated!.matching_messages
   ]
 end

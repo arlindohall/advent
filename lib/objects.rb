@@ -1,4 +1,4 @@
-$debug = true
+$_debug = true
 
 class Object
   def exclude?(value)
@@ -10,7 +10,7 @@ class Object
   end
 
   def plop(prefix: "", show_header: true)
-    return self unless $debug
+    return self unless $_debug
     puts non_objects_caller if show_header
     puts non_objects_caller.gsub(/./, "-") if show_header
     print prefix
@@ -19,7 +19,7 @@ class Object
   end
 
   def plopp(prefix: "", show_header: true)
-    return self unless $debug
+    return self unless $_debug
     puts non_objects_caller if show_header
     puts non_objects_caller.gsub(/./, "-") if show_header
     print prefix
@@ -27,8 +27,8 @@ class Object
     self
   end
 
-  def debug(level = "DEBUG", *args, **kwargs)
-    return unless $debug
+  def _debug(level = "_debug", *args, **kwargs)
+    return unless $_debug
 
     puts non_objects_caller
     puts non_objects_caller.gsub(/./, "-")

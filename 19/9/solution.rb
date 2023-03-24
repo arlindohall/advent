@@ -1,4 +1,3 @@
-
 ###########################################################
 ######################### INTCODE #########################
 ###########################################################
@@ -13,29 +12,29 @@ class IntcodeProgram
   attr_reader :text
 
   OPCODES = {
-    1 =>            :add,
-    2 =>            :multiply,
-    3 =>            :read_value,
-    4 =>            :write_value,
-    5 =>            :jump_if_true,
-    6 =>            :jump_if_false,
-    7 =>            :less_than,
-    8 =>            :equals,
-    9 =>            :adjust_relative_base,
-    99 =>           :halt,
+    1 => :add,
+    2 => :multiply,
+    3 => :read_value,
+    4 => :write_value,
+    5 => :jump_if_true,
+    6 => :jump_if_false,
+    7 => :less_than,
+    8 => :equals,
+    9 => :adjust_relative_base,
+    99 => :halt
   }
 
   SIZE = {
-    multiply:               4,
-    add:                    4,
-    read_value:             2,
-    write_value:            2,
-    jump_if_true:           0,
-    jump_if_false:          0,
-    less_than:              4,
-    equals:                 4,
-    adjust_relative_base:   2,
-    halt:                   0,
+    multiply: 4,
+    add: 4,
+    read_value: 2,
+    write_value: 2,
+    jump_if_true: 0,
+    jump_if_false: 0,
+    less_than: 4,
+    equals: 4,
+    adjust_relative_base: 2,
+    halt: 0
   }
 
   def initialize(text)
@@ -61,9 +60,7 @@ class IntcodeProgram
     initialize_input
     @ip, @rb = 0, 0
 
-    until done?
-      step
-    end
+    step until done?
 
     @outputs
   end
@@ -78,21 +75,27 @@ class IntcodeProgram
 
   def perform_opcode
     code = OPCODES[current]
-    # debug(code)
+    # _debug(code)
 
     raise "Unknown opcode #{@ip}, #{current}" unless code
     send(code)
     @ip += SIZE[code]
   end
 
-  def debug(code)
+  def _debug(code)
     [
-      'code=>', code,
-      'ip=>', @ip,
-      'rb=>', @rb,
-      'text=>', @text[@ip..@ip + SIZE[code] - 1],
-      'modes=>', modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
-      'outputs=>', @outputs,
+      "code=>",
+      code,
+      "ip=>",
+      @ip,
+      "rb=>",
+      @rb,
+      "text=>",
+      @text[@ip..@ip + SIZE[code] - 1],
+      "modes=>",
+      modes(SIZE[code] > 2 ? SIZE[code] - 2 : 0),
+      "outputs=>",
+      @outputs
     ].plop
     @text.plop
     puts
@@ -156,7 +159,7 @@ class IntcodeProgram
   end
 
   def parameters(count)
-    @text[@ip+1..@ip+count]
+    @text[@ip + 1..@ip + count]
       .zip(modes(count))
       .map { |value, mode| parameter(value, mode) }
   end
@@ -209,9 +212,7 @@ class IntcodeProgram
   end
 
   def modes(count)
-    1.upto(count).map { |shift|
-      (@text[@ip] / (10 ** (shift + 1))) % 10
-    }
+    1.upto(count).map { |shift| (@text[@ip] / (10**(shift + 1))) % 10 }
   end
 
   def current
@@ -226,18 +227,47 @@ class IntcodeProgram
 end
 
 def test
-  raise 'large'   unless IntcodeProgram.parse(@large_number).dup.interpret.first ==
-    1125899906842624
-  raise 'sixteen' unless IntcodeProgram.parse(@sixteen_digit).dup.interpret.first.to_s.chars.count ==
-    16
-  raise 'quine'   unless IntcodeProgram.parse(@quine).dup.interpret ==
-    [109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]
+  unless IntcodeProgram.parse(@large_number).dup.interpret.first ==
+           1_125_899_906_842_624
+    raise "large"
+  end
+  unless IntcodeProgram
+           .parse(@sixteen_digit)
+           .dup
+           .interpret
+           .first
+           .to_s
+           .chars
+           .count == 16
+    raise "sixteen"
+  end
+  unless IntcodeProgram.parse(@quine).dup.interpret ==
+           [
+             109,
+             1,
+             204,
+             -1,
+             1001,
+             100,
+             1,
+             100,
+             1008,
+             100,
+             16,
+             101,
+             1006,
+             101,
+             0,
+             99
+           ]
+    raise "quine"
+  end
 end
 
 def solve
   [
     IntcodeProgram.parse(@input).dup.prep_input([1]).interpret.last,
-    IntcodeProgram.parse(@input).dup.prep_input([2]).interpret.first,
+    IntcodeProgram.parse(@input).dup.prep_input([2]).interpret.first
   ]
 end
 

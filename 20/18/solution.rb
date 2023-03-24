@@ -1,10 +1,7 @@
-$debug = true
+$_debug = true
 
 def solve
-  [
-    Homework.new(read_input).sum,
-    Homework.new(read_input).precedence_sum,
-  ]
+  [Homework.new(read_input).sum, Homework.new(read_input).precedence_sum]
 end
 
 class Homework < Struct.new(:text)
@@ -19,7 +16,7 @@ class Homework < Struct.new(:text)
   def expressions
     lines.map { |line| Expression.new(line) }
   end
-  
+
   def precedence_sum
     precedence_expressions.map(&:evaluate).sum
   end
@@ -50,19 +47,17 @@ class Expression < Struct.new(:source)
   end
 
   def parse_expr
-    debug("parsing expression")
+    _debug("parsing expression")
 
     group = parse_group
     operations = []
-    while op_next?
-      operations << parse_operation
-    end
+    operations << parse_operation while op_next?
 
     Expr.new(group, operations)
   end
 
   def parse_group
-    debug("parsign group")
+    _debug("parsign group")
     return parse_number if number_next?
 
     consume(:left_paren)
@@ -73,7 +68,7 @@ class Expression < Struct.new(:source)
   end
 
   def parse_operation
-    debug("parsing operation")
+    _debug("parsing operation")
     op = parse_op
     group = parse_group
 
@@ -81,13 +76,13 @@ class Expression < Struct.new(:source)
   end
 
   def parse_op
-    debug("parsing op")
+    _debug("parsing op")
     raise "Unexpected type #{type}" unless op_next?
     advance.type
   end
 
   def parse_number
-    debug("parsing number")
+    _debug("parsing number")
     Number.new(advance.source)
   end
 
@@ -96,7 +91,7 @@ class Expression < Struct.new(:source)
   end
 
   def op_next?
-    %i(plus times).include?(current&.type)
+    %i[plus times].include?(current&.type)
   end
 
   def current
@@ -105,27 +100,30 @@ class Expression < Struct.new(:source)
 
   def advance
     @index += 1
-    tokens[index-1]
+    tokens[index - 1]
   end
 
   def consume(type)
-    raise "Unexpected token #{index}/#{current}, wanted #{type}" unless current&.type == type
+    unless current&.type == type
+      raise "Unexpected token #{index}/#{current}, wanted #{type}"
+    end
     advance
   end
 
   def assert_done!
-    raise "Expected end of input, got #{index}=#{current} in #{tokens.map(&:type)}" unless
-      index == tokens.length
+    unless index == tokens.length
+      raise "Expected end of input, got #{index}=#{current} in #{tokens.map(&:type)}"
+    end
   end
 
-  def debug(*args)
-    return unless $debug
+  def _debug(*args)
+    return unless $_debug
     [*args, current&.source].plopp
   end
 
   module DebuggableExpression
-    def debug(*args)
-      return unless $debug
+    def _debug(*args)
+      return unless $_debug
       args.plopp
     end
   end
@@ -136,10 +134,10 @@ class Expression < Struct.new(:source)
     def evaluate
       acc = group.evaluate
 
-      debug("evaluating expression", acc)
+      _debug("evaluating expression", acc)
       while op = operations.shift
         acc = apply(acc, op)
-        debug("updated accumulator", acc)
+        _debug("updated accumulator", acc)
       end
 
       acc
@@ -159,7 +157,7 @@ class Expression < Struct.new(:source)
     include DebuggableExpression
 
     def evaluate
-      debug("evaluating operation", type)
+      _debug("evaluating operation", type)
       group.evaluate
     end
   end
@@ -168,7 +166,7 @@ class Expression < Struct.new(:source)
     include DebuggableExpression
 
     def evaluate
-      debug("evaluating group")
+      _debug("evaluating group")
       expression.evaluate
     end
   end
@@ -177,7 +175,7 @@ class Expression < Struct.new(:source)
     include DebuggableExpression
 
     def evaluate
-      debug("evaluating number", value)
+      _debug("evaluating number", value)
       value.to_i
     end
   end
@@ -198,9 +196,12 @@ class Expression < Struct.new(:source)
 
   def read_token
     case current_token
-    when "(", ")", "+", "*"   ; read_symbol
-    when /[0-9]/              ; read_number
-    else ; raise "Unknown value"
+    when "(", ")", "+", "*"
+      read_symbol
+    when /[0-9]/
+      read_number
+    else
+      raise "Unknown value"
     end
   end
 
@@ -224,9 +225,7 @@ class Expression < Struct.new(:source)
 
   def read_number
     number = []
-    while current_token&.match(/[0-9]/)
-      number << advance_token
-    end
+    number << advance_token while current_token&.match(/[0-9]/)
     Token.new(:number, number.join)
   end
 
@@ -247,7 +246,8 @@ class Expression < Struct.new(:source)
     source[token_index]
   end
 
-  class Token < Struct.new(:type, :source) ; end
+  class Token < Struct.new(:type, :source)
+  end
 
   attr_reader :token_index, :index
 end
@@ -261,7 +261,7 @@ number := [0-9]+
 doc
 class PrecedenceExpression < Expression
   def parse_expr
-    debug("parsing expression")
+    _debug("parsing expression")
 
     factors = [parse_factor]
     while times_next?
@@ -273,7 +273,7 @@ class PrecedenceExpression < Expression
   end
 
   def parse_factor
-    debug("parsing factor")
+    _debug("parsing factor")
 
     addends = [parse_addend]
     while plus_next?
@@ -307,7 +307,7 @@ class PrecedenceExpression < Expression
     include Expression::DebuggableExpression
 
     def evaluate
-      debug("evaluating sum", addends.map(&:evaluate).sum)
+      _debug("evaluating sum", addends.map(&:evaluate).sum)
       addends.map(&:evaluate).sum
     end
   end
@@ -316,7 +316,7 @@ class PrecedenceExpression < Expression
     include Expression::DebuggableExpression
 
     def evaluate
-      debug("evaluating product", factors.map(&:evaluate).product)
+      _debug("evaluating product", factors.map(&:evaluate).product)
       factors.map(&:evaluate).product
     end
   end

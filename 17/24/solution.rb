@@ -1,4 +1,3 @@
-
 Component = Struct.new(:left, :right)
 
 # Components go from left to right
@@ -32,16 +31,17 @@ class Bridge
   end
 
   def strength
-    @components.map{|c| c.left + c.right}.sum
+    @components.map { |c| c.left + c.right }.sum
   end
 
   def extensions
-    @bin.filter{|c| can_connect?(c)}
-      .map{|c| Bridge.new(@components + [c.orient(last)], @bin - [c])}
+    @bin
+      .filter { |c| can_connect?(c) }
+      .map { |c| Bridge.new(@components + [c.orient(last)], @bin - [c]) }
   end
 
   def can_connect?(c)
-    c.values.any?{|v| v == last}
+    c.values.any? { |v| v == last }
   end
 
   def last
@@ -56,9 +56,10 @@ class Builder
 
   def self.of(text)
     new(
-      text.split("\n")
-        .map{|l| l.split('/').map(&:to_i)}
-        .map{|l| Component.new(l[0], l[1])}
+      text
+        .split("\n")
+        .map { |l| l.split("/").map(&:to_i) }
+        .map { |l| Component.new(l[0], l[1]) }
         .to_set
     )
   end
@@ -67,8 +68,6 @@ class Builder
     [strongest_bridge.strength, @longest.max_by(&:strength).strength]
   end
 
-    
-
   def strongest_bridge
     @queue = first_bridges
     @strongest = Bridge.new([], []) # Empty but we won't use it except to compare once
@@ -76,7 +75,7 @@ class Builder
 
     while @queue.any?
       dequeue
-      debug(@strongest)
+      _debug(@strongest)
       compare
       compare_length
       build_bridges
@@ -85,28 +84,32 @@ class Builder
     @strongest
   end
 
-  def debug(winner)
-    p [@queue.length, winner.strength, @bridge.components.length] if @queue.length % 1000 == 0
+  def _debug(winner)
+    if @queue.length % 1000 == 0
+      p [@queue.length, winner.strength, @bridge.components.length]
+    end
   end
 
   def all
     bridges = first_bridges
     all_bridges = bridges.dup
-    15.times {
+    15.times do
       bridges = bridges.flat_map(&:extensions)
       all_bridges += bridges
-    }
+    end
     all_bridges
   end
 
-  def extend(n=1)
+  def extend(n = 1)
     bridges = first_bridges
     n.times { bridges = bridges.flat_map(&:extensions) }
     bridges
   end
 
   def first_bridges
-    starting_components.map{|c| Bridge.new([c.orient(0)], @components - Set[c])}
+    starting_components.map do |c|
+      Bridge.new([c.orient(0)], @components - Set[c])
+    end
   end
 
   def dequeue
@@ -126,13 +129,11 @@ class Builder
   end
 
   def build_bridges
-    @bridge.extensions.each { |e|
-      @queue << e
-    }
+    @bridge.extensions.each { |e| @queue << e }
   end
 
   def starting_components
-    @components.filter{|c| c.values.any?(&:zero?) }
+    @components.filter { |c| c.values.any?(&:zero?) }
   end
 end
 

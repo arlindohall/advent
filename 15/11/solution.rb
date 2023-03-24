@@ -1,5 +1,4 @@
 
-require 'debug'
 
 Password = Struct.new(:string)
 class Password

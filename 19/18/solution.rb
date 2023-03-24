@@ -1,6 +1,6 @@
-$debug = false
+$_debug = false
 
-STARTING_POINTS = [?@, ?$, ?%, ?&]
+STARTING_POINTS = %w[@ $ % &]
 
 class Tunnels
   attr_reader :steps, :location
@@ -12,11 +12,7 @@ class Tunnels
   end
 
   def dup
-    Tunnels.new(
-      @graph,
-      @location,
-      @steps,
-    )
+    Tunnels.new(@graph, @location, @steps)
   end
 
   # I feel really stupid but I can't figure out what the right answer was
@@ -35,10 +31,13 @@ class Tunnels
   end
 
   def minimum_steps(starting_points, keys, distances)
-    @search_count ||= 0 ; @search_count += 1
-    puts "Looking for minimum steps from points=#{starting_points}, " \
-      "keys=#{keys.size}, " \
-      "distances=#{distances.size}" if @search_count % 10_000 == 0
+    @search_count ||= 0
+    @search_count += 1
+    if @search_count % 10_000 == 0
+      puts "Looking for minimum steps from points=#{starting_points}, " \
+             "keys=#{keys.size}, " \
+             "distances=#{distances.size}"
+    end
 
     state = [starting_points, keys]
 
@@ -46,15 +45,21 @@ class Tunnels
 
     distances[state] = find_reachable_points(starting_points, keys)
       .map do |key, distance, source|
-        distance + minimum_steps((starting_points - Set[source]) + Set[key],
-                                 keys + Set[key],
-                                 distances)
-      end.min || 0
+        distance +
+          minimum_steps(
+            (starting_points - Set[source]) + Set[key],
+            keys + Set[key],
+            distances
+          )
+      end
+      .min || 0
   end
 
   def find_reachable_points(starting_points, keys)
-    puts "-Looking for reachable points from points=#{starting_points}, " \
-      "keys=#{keys}" if $debug
+    if $_debug
+      puts "-Looking for reachable points from points=#{starting_points}, " \
+             "keys=#{keys}"
+    end
 
     starting_points.flat_map do |point|
       find_reachable_keys(point, keys).map do |key, distance|
@@ -64,30 +69,35 @@ class Tunnels
   end
 
   def find_reachable_keys(point, keys)
-    puts "--Looking for reachable keys from point=#{point}, " \
-      "keys=#{keys}" if $debug
-
-    search_queue = [point]
-    distances = {point => 0}
-    until search_queue.empty?
-      name = search_queue.shift
-      @graph.neighbors(name).each do |neighbor, distance|
-        puts "---Checking if we can reach #{neighbor} from #{name}" if $debug
-        raise "Trying to visit #{neighbor} without first visiting #{name}" unless distances[name]
-        next unless can_visit?(neighbor, keys)
-        next if distances[neighbor]
-        distances[neighbor] = distances[name] + distance
-        search_queue << neighbor
-      end
+    if $_debug
+      puts "--Looking for reachable keys from point=#{point}, " \
+             "keys=#{keys}"
     end
 
-    puts "--Found distances=#{distances}" if $debug
-    distances.filter { |name, _| key?(name) }
+    search_queue = [point]
+    distances = { point => 0 }
+    until search_queue.empty?
+      name = search_queue.shift
+      @graph
+        .neighbors(name)
+        .each do |neighbor, distance|
+          puts "---Checking if we can reach #{neighbor} from #{name}" if $_debug
+          unless distances[name]
+            raise "Trying to visit #{neighbor} without first visiting #{name}"
+          end
+          next unless can_visit?(neighbor, keys)
+          next if distances[neighbor]
+          distances[neighbor] = distances[name] + distance
+          search_queue << neighbor
+        end
+    end
+
+    puts "--Found distances=#{distances}" if $_debug
+    distances
+      .filter { |name, _| key?(name) }
       .reject { |name, _| name == point }
       .reject { |name, _| keys.include?(name) }
-      .map do |name, distance|
-        [name, distance]
-      end
+      .map { |name, distance| [name, distance] }
   end
 
   def can_visit?(name, keys)
@@ -111,12 +121,11 @@ class Tunnels
 
     def map_properties(text)
       [
-        text.split("\n")
+        text
+          .split("\n")
           .each_with_index
           .flat_map do |line, y|
-            line.split('')
-              .each_with_index
-              .map { |ch, x| [[x,y], ch] }
+            line.split("").each_with_index.map { |ch, x| [[x, y], ch] }
           end
           .to_h,
         text.split("\n").first.size,
@@ -125,7 +134,7 @@ class Tunnels
     end
 
     def graphify(map, x, y)
-      new(graph_from(map, x, y), ?@)
+      new(graph_from(map, x, y), "@")
     end
 
     def graph_from(map, x, y)
@@ -166,15 +175,18 @@ class Graph
 
     def parse
       # puts "Searching #{nodes.size} nodes"
-      nodes.keys.each { |name| nodes[name].neighbors = dup.fill_neighbors(name) }
+      nodes.keys.each do |name|
+        nodes[name].neighbors = dup.fill_neighbors(name)
+      end
       Graph.new(nodes)
     end
 
     def nodes
-      @nodes ||= @map.each_with_object({}) do |(location, ch), nodes|
-        raise "Duplicate node #{ch} at #{location}" if nodes[ch]
-        nodes[ch] = Node.new(ch, location) if ch =~ /[A-Za-z@$%&]/
-      end
+      @nodes ||=
+        @map.each_with_object({}) do |(location, ch), nodes|
+          raise "Duplicate node #{ch} at #{location}" if nodes[ch]
+          nodes[ch] = Node.new(ch, location) if ch =~ /[A-Za-z@$%&]/
+        end
     end
 
     def node(name)
@@ -182,7 +194,9 @@ class Graph
     end
 
     def fill_neighbors(key)
-      raise "Unknown key #{key} value=#{node(key)} map=#{@map[node(key).location]}" unless node(key)
+      unless node(key)
+        raise "Unknown key #{key} value=#{node(key)} map=#{@map[node(key).location]}"
+      end
       initialize_search(key)
       # puts "Searching for #{@starting_point.name}"
 
@@ -194,7 +208,9 @@ class Graph
       # p @found_neighbors.map(&:first).uniq
       # p @found_neighbors.map(&:first)
 
-      raise "Expected unique paths to neighbors" unless @found_neighbors.map(&:first).uniq.size == @found_neighbors.size
+      unless @found_neighbors.map(&:first).uniq.size == @found_neighbors.size
+        raise "Expected unique paths to neighbors"
+      end
       @found_neighbors
     end
 
@@ -203,32 +219,34 @@ class Graph
       @starting_point = node(key)
       @distance = 1
       @search_queue = neighbors(@starting_point.location)
-      @map[@starting_point.location] = ?#
+      @map[@starting_point.location] = "#"
     end
 
     def update_search_queue
-      debug
+      _debug
 
-      @search_queue = @search_queue.map do |location|
-        visit(location)
-      end
-      .compact
-      .flat_map { |location| neighbors(location) }
+      @search_queue =
+        @search_queue
+          .map { |location| visit(location) }
+          .compact
+          .flat_map { |location| neighbors(location) }
     end
 
     def visit(location)
-      return if @map[location] == ?#
-      @map[location] = ?. if entrance?(location)
+      return if @map[location] == "#"
+      @map[location] = "." if entrance?(location)
 
       if @map[location] =~ /[A-Za-z]/
         @found_neighbors << [@map[location], @distance]
         return
       end
 
-      raise "Expected path but found #{@map[location]}(#{location})" unless @map[location] == ?.
+      unless @map[location] == "."
+        raise "Expected path but found #{@map[location]}(#{location})"
+      end
       location
     ensure
-      @map[location] = ?#
+      @map[location] = "#"
     end
 
     def entrance?(location)
@@ -237,21 +255,16 @@ class Graph
 
     def neighbors(location)
       x, y = location
-      [
-        [x-1, y],
-        [x+1, y],
-        [x, y-1],
-        [x, y+1],
-      ].filter { |loc| @map[loc] && @map[loc] != ?# }
+      [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].filter do |loc|
+        @map[loc] && @map[loc] != "#"
+      end
     end
 
-    def debug
-      return unless $debug
+    def _debug
+      return unless $_debug
       print "\033[H"
       0.upto(@y) do |y|
-        0.upto(@x) do |x|
-          print @map[[x,y]] || ' '
-        end
+        0.upto(@x) { |x| print @map[[x, y]] || " " }
         puts
       end
       puts @search_queue.size
@@ -261,22 +274,24 @@ end
 
 def test
   [
-    @example1, 8,
-    @example2, 86,
-    @example3, 132,
-    @example4, 136,
-    @example5, 81,
+    @example1,
+    8,
+    @example2,
+    86,
+    @example3,
+    132,
+    @example4,
+    136,
+    @example5,
+    81
   ].each_slice(2) do |input, expected|
     actual = Tunnels.parse(input).find_all_keys
     raise "Expected #{expected} got #{actual}" unless actual == expected
   end
 
-  [
-    @example6, 8,
-    @example7, 24,
-    @example8, 32,
-    @example9, 72,
-  ].each_slice(2) do |input, expected|
+  [@example6, 8, @example7, 24, @example8, 32, @example9, 72].each_slice(
+    2
+  ) do |input, expected|
     actual = Tunnels.parse(input).find_all_keys_four_searchers
     raise "Expected #{expected} got #{actual}" unless actual == expected
   end
@@ -285,7 +300,10 @@ def test
 end
 
 def solve
-  [Tunnels.parse(@input).find_all_keys, Tunnels.parse(@input2).find_all_keys_four_searchers]
+  [
+    Tunnels.parse(@input).find_all_keys,
+    Tunnels.parse(@input2).find_all_keys_four_searchers
+  ]
 end
 
 @example1 = <<-map.strip
