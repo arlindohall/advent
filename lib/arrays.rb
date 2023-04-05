@@ -50,14 +50,36 @@ class Array
     transpose.map { |row| row.reverse }.matrix_rotate(times - 1)
   end
 
+  def matrix_multiply(other)
+    self.rows.map { |r| other.columns.map { |c| r.zip(c).map(&:product).sum } }
+  end
+
+  def dim
+    return [size] unless first.is_a?(Array)
+
+    raise "Not a matrix" unless all? { |row| row.size == first.size }
+
+    first.dim.with(size)
+  end
+
+  def rows
+    self.dup
+  end
+
+  def columns
+    transpose
+  end
+
+  def to_vector
+    map { |i| [i] }
+  end
+
   def count_values
     group_by(&:itself).transform_values(&:count)
   end
 
   def shape
-    return "#{size}x#{first.shape}" if first.is_a? Array
-
-    size.to_s
+    dim.join("x").to_s
   end
 
   def median
@@ -73,5 +95,11 @@ class Hash
   def without!(x)
     delete(x)
     self
+  end
+end
+
+class Vector
+  def self.[](*ary)
+    ary.to_vector
   end
 end

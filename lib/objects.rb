@@ -101,4 +101,8 @@ class Numeric
   def to(other)
     self < other ? upto(other) : downto(other)
   end
+
+  def square
+    self * self
+  end
 end

@@ -4,5 +4,4 @@ source "https://rubygems.org"
 
 # gem "rails"
 
-gem "ruby-lsp"
 gem "ruby-prof"
