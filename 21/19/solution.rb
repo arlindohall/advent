@@ -6,37 +6,46 @@ class Probe
     @text = text
   end
 
+  def unique_beacons
+    all_beacons.map(&:coordinates).uniq
+  end
+
+  def all_beacons
+    scanners[0].beacons + scanner_map.values.flatten.map(&:beacons).flatten
+  end
+
   memoize def scanners
     text.split("\n\n").map { |block| Scanner.parse(block) }
   end
 
   memoize def scanner_map
-    build_scanner_map(scanners.drop(1), scanners.first, {}).then do |map|
-      translate_values!(map, scanners[0])
-    end
+    build_scanner_map(scanners.drop(1), scanners.first, {})
   end
 
   def build_scanner_map(unmatched, current, map)
-    return if unmatched.empty?
+    return map if unmatched.empty?
 
-    matched = unmatched.select { |scanner| current.overlap?(scanner) }
+    matched = unmatched.filter { |scanner| current.overlap?(scanner) }
     unmatched.reject! { |scanner| matched.include?(scanner) }
 
-    map[current.id] = matched
-    matched.each { |scanner| build_scanner_map(unmatched, scanner, map) }
-
-    map
-  end
-
-  # todo: orient to whole scanner
-  def translate_values!(map, base)
-    return unless map[base.id]
-
-    map[base.id] = map[base.id].map do |scanner|
-      scanner.orient_to(base).offset_to(base)
+    map[current.id] = matched.map do |scanner|
+      scanner.orient_to(current).offset_to(current)
     end
 
-    map[base.id].each { |scanner| translate_values!(map, scanner) }
+    map[current.id].each do |scanner|
+      current
+        .overlapping_beacons(scanner)
+        .sub_map(&:coordinates)
+        .tap { |cds| cds.each { |cd| assert! cd.first == cd.second } }
+        .map(&:first)
+        .sort
+        .each { |c| c.plopp(show_header: false) }
+    end
+
+    map[current.id].each do |scanner|
+      build_scanner_map(unmatched, scanner, map)
+    end
+
     map
   end
 
@@ -51,17 +60,39 @@ class Probe
       [0, 0, -1]
     ].permutation(3).to_a
 
-    attr_reader :id, :beacons
-    def initialize(id, beacons)
+    attr_reader :id, :beacons, :offset
+    def initialize(id, beacons, offset = nil)
       @id = id
       @beacons = beacons
+      @offset = offset
     end
 
     def overlap?(other, at_least = 12)
-      overlap(other).count >= at_least
+      overlapping_beacons(other).count >= at_least
     end
 
-    def overlap(other)
+    def overlapping_beacons(other)
+      overlapping_fingerprints(other)
+        .map { |fp| fingerprinted_beacons[fp] }
+        .flatten
+        .uniq
+        .map { |bc| [bc, matching_beacon(bc, other)] }
+    end
+
+    def matching_beacon(beacon, other)
+      my_fps = fingerprints_for(beacon).to_set
+      other.beacons.max_by do |other_beacon|
+        (other.fingerprints_for(other_beacon).to_set & my_fps).count
+      end
+    end
+
+    def fingerprints_for(beacon)
+      fingerprinted_beacons.keys.filter do |fp|
+        fingerprinted_beacons[fp].include?(beacon)
+      end
+    end
+
+    def overlapping_fingerprints(other)
       fingerprinted_beacons.keys.to_set &
         other.fingerprinted_beacons.keys.to_set
     end
@@ -82,7 +113,7 @@ class Probe
     def offset_to(other)
       o = offset(other)
       puts "Scanner #{id} offset by #{o} to #{other.id}"
-      self.class.new(id, beacons.map { |beacon| beacon + o })
+      self.class.new(id, beacons.map { |beacon| beacon + o }, o)
     end
 
     # Offset you can change self by to get other's position
@@ -109,11 +140,12 @@ class Probe
     end
 
     def first_shared_fingerprint(other)
-      overlap(other).first
+      overlapping_fingerprints(other).first
     end
 
     def first_shared_beacon(other)
-      beacon = fingerprinted_beacons[overlap(other).first].first
+      beacon =
+        fingerprinted_beacons[overlapping_fingerprints(other).first].first
       fingerprints = shared_fingerprints(beacon)
       other_beacon =
         other
@@ -129,7 +161,7 @@ class Probe
       fingerprinted_beacons.values.first.first
     end
 
-    def shared_fingerprints(beacon)
+    memoize def shared_fingerprints(beacon)
       fingerprinted_beacons
         .filter do |fp, beacons|
           beacons.any? { |bc| bc.coordinates == beacon.coordinates }

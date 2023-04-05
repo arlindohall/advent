@@ -85,6 +85,18 @@ class Array
   def median
     sort[size / 2]
   end
+
+  def determinant
+    if dim == [2, 2]
+      self[0][0] * self[1][1] - self[0][1] * self[1][0]
+    elsif dim == [3, 3]
+      self[0][0] * (self[1][1] * self[2][2] - self[1][2] * self[2][1]) -
+        self[0][1] * (self[1][0] * self[2][2] - self[1][2] * self[2][0]) +
+        self[0][2] * (self[1][0] * self[2][1] - self[1][1] * self[2][0])
+    else
+      raise "Don't know how to take det of #{shape} matrix"
+    end
+  end
 end
 
 class Hash
