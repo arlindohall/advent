@@ -181,9 +181,20 @@ class Probe
       #   .max_by { |v, count| count }
       #   .first
 
-      ROTATIONS.find { |r| project_scanner(r).offsets(other).count == 1 }
+      ROTATIONS
+        .filter { |r| fp_overlap_rotates(other, r) }
+        .find { |r| project_scanner(r).offsets(other).count == 1 } ||
+        # Shouldn't need the second one but I can't be fucked, it's quicker and works so whatever
+        ROTATIONS.find { |r| project_scanner(r).offsets(other).count == 1 }
       # rescue StandardError => e
       #   binding.pry
+    end
+
+    def fp_overlap_rotates(other, rotation)
+      fp = overlapping_fingerprints(other).first
+      my_edge = fp_vector(fp)
+      their_edge = other.fp_vector(fp)
+      rotation.matrix_multiply(my_edge.to_vector) == their_edge.to_vector
     end
 
     # def rotation_for(my_edge, their_edge)
