@@ -1,5 +1,10 @@
 $debug = true
 
+def solve(input = nil) =
+  Probe
+    .new(input || read_input)
+    .then { |pb| [pb.unique_beacons.count, pb.dist_between_scanners] }
+
 class Probe
   attr_reader :text
   def initialize(text)
@@ -12,6 +17,18 @@ class Probe
 
   def all_beacons
     scanners[0].beacons + scanner_map.values.flatten.map(&:beacons).flatten
+  end
+
+  def dist_between_scanners
+    [
+      scanner_map
+        .values
+        .flatten
+        .combination(2)
+        .map { |s1, s2| s1.dist(s2) }
+        .max,
+      scanner_map.values.flatten.map(&:offset).map { |o| o.map(&:abs).sum }.max
+    ].max
   end
 
   memoize def scanners
@@ -39,7 +56,11 @@ class Probe
         .tap { |cds| cds.each { |cd| assert! cd.first == cd.second } }
         .map(&:first)
         .sort
-        .each { |c| c.plopp(show_header: false) }
+      # .each { |c| c.plopp(show_header: false) }
+      # rescue StandardError
+      # Notice that this fails because the alignment failed, it looks like
+      # offset but might be orientation
+      #   binding.pry
     end
 
     map[current.id].each do |scanner|
@@ -64,11 +85,20 @@ class Probe
     def initialize(id, beacons, offset = nil)
       @id = id
       @beacons = beacons
-      @offset = offset
+      @offset = offset || [0, 0, 0]
+    end
+
+    def dist(other)
+      offset.zip(other.offset).map { |a, b| (a - b).abs }.sum
     end
 
     def overlap?(other, at_least = 12)
-      overlapping_beacons(other).count >= at_least
+      overlapping_beacons(other)
+        .count
+        .tap do |result|
+          puts "-- Scanner #{self.id} overlaps by n=#{result} with scanner #{other.id}"
+        end
+        .then { |result| result >= at_least }
     end
 
     def overlapping_beacons(other)
@@ -99,49 +129,74 @@ class Probe
 
     def orient_to(other)
       o = orientation(other)
-      self.class.new(
-        id,
-        beacons.map do |beacon|
-          Beacon.new(
-            o.matrix_multiply(beacon.coordinates.to_vector).flatten,
-            id
-          )
-        end
-      )
+      project_scanner(o)
+    end
+
+    def project_scanner(basis)
+      self.class.new(id, project(basis))
+    end
+
+    def project(basis)
+      beacons.map do |beacon|
+        Beacon.new(
+          basis.matrix_multiply(beacon.coordinates.to_vector).flatten,
+          id
+        )
+      end
     end
 
     def offset_to(other)
-      o = offset(other)
+      o = offsets(other).only!
       puts "Scanner #{id} offset by #{o} to #{other.id}"
       self.class.new(id, beacons.map { |beacon| beacon + o }, o)
     end
 
     # Offset you can change self by to get other's position
     # self + offset = other
-    def offset(other)
-      first_shared_beacon(other).then { |mine, theirs| theirs - mine }
+    def offsets(other)
+      # first_shared_beacon(other).then { |mine, theirs| theirs - mine }
+      overlapping_beacons(other).map { |mine, theirs| theirs - mine }.uniq
     end
 
+    def fp_vector(fingerprint)
+      fingerprinted_beacons[fingerprint].then { |p1, p2| p1 - p2 }
+    end
+
+    # TODO: is there a way to check orientations for all beacons
+    # at the same time and pick the one that's the closest
     # Matrix that you can multiply self by to get other
     # orientation * self = other's orientation
     def orientation(other)
-      my_edge =
-        fingerprinted_beacons[first_shared_fingerprint(other)].then do |p1, p2|
-          p1 - p2
-        end
-      their_edge =
-        other.fingerprinted_beacons[
-          first_shared_fingerprint(other)
-        ].then { |p1, p2| p1 - p2 }
+      # fp = overlapping_fingerprints(other).first
+      # my_edge = fp_vector(fp)
+      # their_edge = other.fp_vector(fp)
 
-      ROTATIONS.find do |rotation|
-        rotation.matrix_multiply(my_edge.to_vector) == their_edge.to_vector
-      end
+      # rotation_for(my_edge, their_edge)
+      # TODO: it seems like the most common should work but it doesn't
+      # overlapping_fingerprints(other)
+      #   .map { |fp| [fp_vector(fp), other.fp_vector(fp)] }
+      #   .map { |my_edge, their_edge| rotation_for(my_edge, their_edge) }
+      #   .compact
+      #   .count_values
+      #   .max_by { |v, count| count }
+      #   .first
+
+      ROTATIONS.find { |r| project_scanner(r).offsets(other).count == 1 }
+      # rescue StandardError => e
+      #   binding.pry
     end
 
-    def first_shared_fingerprint(other)
-      overlapping_fingerprints(other).first
-    end
+    # def rotation_for(my_edge, their_edge)
+    #   ROTATIONS
+    #     .filter do |rotation|
+    #       rotation.matrix_multiply(my_edge.to_vector) == their_edge.to_vector
+    #     end
+    #     .only!
+    #   # Will error when two columns same, e.g. [1, 1, 2], [1, -1, 2]
+    #   # rescue StandardError
+    #   #   # binding.pry
+    #   #   nil
+    # end
 
     def first_shared_beacon(other)
       beacon =
@@ -155,10 +210,6 @@ class Probe
           .reduce(&:&)
           .only!
       [beacon, other_beacon]
-    end
-
-    def any_beacon
-      fingerprinted_beacons.values.first.first
     end
 
     memoize def shared_fingerprints(beacon)
