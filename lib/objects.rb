@@ -73,20 +73,20 @@ class Class
   def memoize(name)
     method = instance_method(name)
 
-    define_method(name) do |*arg|
+    define_method(name) do |*arg, **kwarg|
       @__memo ||= {}
       @__memo[name] ||= {}
-      @__memo[name][arg] ||= method.bind(self).call(*arg)
+      @__memo[name][[arg, kwarg]] ||= method.bind(self).call(*arg, **kwarg)
     end
   end
 
   def memoize_class(name)
     method = instance_method(name)
 
-    define_method(name) do |*arg|
+    define_method(name) do |*arg, **kwarg|
       @@__memo ||= {}
       @@__memo[name] ||= {}
-      @@__memo[name][arg] ||= method.bind(self).call(*arg)
+      @@__memo[name][arg, kwarg] ||= method.bind(self).call(*arg, **kwarg)
     end
   end
 end
