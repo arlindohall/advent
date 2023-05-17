@@ -1,13 +1,17 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    prettier_print (1.2.1)
     ruby-prof (1.4.3)
+    syntax_tree (6.1.1)
+      prettier_print (>= 1.2.0)
 
 PLATFORMS
   x86_64-darwin-21
 
 DEPENDENCIES
   ruby-prof
+  syntax_tree (~> 6.1)
 
 BUNDLED WITH
    2.3.3

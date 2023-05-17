@@ -89,6 +89,25 @@ class Class
       @@__memo[name][arg, kwarg] ||= method.bind(self).call(*arg, **kwarg)
     end
   end
+
+  def shape(*variable_names, **defaults)
+    variable_definitions =
+      variable_names
+        .map do |name|
+          "@#{name} = params[:#{name}]" +
+            (defaults[name] ? "|| #{defaults[name]}" : "")
+        end
+        .join(" ; ")
+    body = <<~body
+        attr_reader #{variable_names.map(&:inspect).join(", ")}
+        def initialize(**params)
+          #{variable_definitions}
+        end
+
+        def is_shape? = true
+      body
+    self.class_eval(body)
+  end
 end
 
 class String
