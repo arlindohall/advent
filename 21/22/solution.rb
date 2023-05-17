@@ -1,4 +1,4 @@
-$_debug = false
+$_debug = true
 
 def solve =
   ReactorRobot.parse(read_input).then { |rr| [rr.only_50.size, rr.all.size] }
@@ -167,18 +167,41 @@ class Box
   end
 
   def bot(axis, box)
-    [send("#{axis}min"), [box.send("#{axis}min") - 1, send("#{axis}max")].min]
+    [
+      extreme(axis, :min),
+      [box.extreme(axis, :min) - 1, extreme(axis, :max)].min
+    ]
   end
 
   def mid(axis, box)
     [
-      [send("#{axis}min"), box.send("#{axis}min")].max,
-      [send("#{axis}max"), box.send("#{axis}max")].min
+      [extreme(axis, :min), box.extreme(axis, :min)].max,
+      [extreme(axis, :max), box.extreme(axis, :max)].min
     ]
   end
 
   def top(axis, box)
-    [[box.send("#{axis}max") + 1, send("#{axis}min")].max, send("#{axis}max")]
+    [
+      [box.extreme(axis, :max) + 1, extreme(axis, :min)].max,
+      extreme(axis, :max)
+    ]
+  end
+
+  def extreme(axis, extrema)
+    case [axis, extrema]
+    when %i[x min]
+      xmin
+    when %i[x max]
+      xmax
+    when %i[y min]
+      ymin
+    when %i[y max]
+      ymax
+    when %i[z min]
+      zmin
+    when %i[z max]
+      zmax
+    end
   end
 
   def ==(box)
