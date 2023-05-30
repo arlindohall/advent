@@ -1,11 +1,13 @@
+require_relative "./helpers"
 
-require_relative './helpers'
-
-def read_input
-  @input ||= Problem.current.input_file.read.strip
+def read_input(strip: true)
+  @input ||= Problem.current.input_file.read.strip if strip
+  @input ||= Problem.current.input_file.read unless strip
 end
 
-def read_example(n = nil)
+def read_example(n = nil, strip: true)
   @examples ||= {}
-  @examples[n] ||= Problem.current.example_file(n).read.strip
+
+  @examples[n] ||= Problem.current.example_file(n).read.strip if strip
+  @examples[n] ||= Problem.current.example_file(n).read unless strip
 end
