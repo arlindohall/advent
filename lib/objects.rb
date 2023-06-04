@@ -124,4 +124,8 @@ class Numeric
   def square
     self * self
   end
+
+  def sign
+    self <=> 0
+  end
 end
