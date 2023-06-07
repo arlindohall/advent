@@ -28,25 +28,32 @@ class Bridge
 
     moves.each do |first_move, t|
       t.times do
-        moves = [first_move]
-        ropes.each { |rope| moves = decompose(rope, moves) }
-        tails << ropes.last.tail.dup
+        move = first_move
+        ropes.each { |rope| move = rope.move!(move) }
+        tails << ropes.last.head.dup
       end
+      # debug_chain(ropes)
     end
 
     tails.count
   end
 
-  def decompose(rope, moves)
-    x, y = 0, 0
-    moves.each do |move|
-      new_tail = rope.move!(move)
-      dx, dy = new_tail
-      x += dx
-      y += dy
-    end
+  def debug_chain(chain)
+    chain = chain.map(&:head)
+    # xmin, xmax = chain.map(&:first).minmax
+    # ymin, ymax = chain.map(&:second).minmax
 
-    y.times.map { [0, y.sign] } + x.times.map { [x.sign, 0] }
+    18
+      .downto(-7)
+      .each do |y|
+        -14
+          .upto(16)
+          .each do |x|
+            print(chain.include?([x, y]) ? chain.index([x, y]) : ".")
+          end
+        puts
+      end
+    puts
   end
 
   def debug(squares)
