@@ -37,32 +37,25 @@ class SensorArray
   end
 
   def single_position_without(max_y)
-    skip_ahead = max_y > 20 ? 2_900_000 : 0
+    # skip_ahead = max_y > 20 ? 2_900_000 : 0
+    skip_ahead = 0
     (skip_ahead).upto(max_y) do |y|
-      # puts y if y % 10_000 == 0
-      size, intervals = without_beacon_in(max_y, y)
-      _debug("Checking size of leftovers", y:, size:, intervals:)
-      return y, intervals if size == 0
+      puts y if y % 10_000 == 0
+      intervals = without_beacon_in(max_y, y)
+      # _debug("Checking size of leftovers", y:, intervals:)
+      next if intervals.size == 1
+      return y, intervals
     end
     nil
   end
 
   def without_beacon_in(max_y, y)
-    intervals =
-      positions_without_beacon(
-        y,
-        include_beacons: true
-      ).map do |xi_start, xi_end|
-        xt_start, xt_end =
-          [[[xi_start, 0].max, max_y].min, [[xi_end, 0].max, max_y].min]
-        _debug("Interval truncated: ", :xt_start, xt_start, :xt_end, xt_end)
-        [xt_start, xt_end]
-      end
-
-    [
-      intervals.map { |xs, xe| xe - xs + 1 }.map { |s| -s }.sum + max_y,
-      intervals
-    ]
+    positions_without_beacon(y, include_beacons: true).map do |xi_start, xi_end|
+      xt_start, xt_end =
+        [[[xi_start, 0].max, max_y].min, [[xi_end, 0].max, max_y].min]
+      _debug("Interval truncated: ", :xt_start, xt_start, :xt_end, xt_end)
+      [xt_start, xt_end]
+    end
   end
 
   def space_in(interval)
@@ -85,7 +78,7 @@ class SensorArray
 
     return [interval] if interval_list.empty?
 
-    if interval_list.last.last >= interval.first
+    if interval_list.last.last >= interval.first - 1
       interval_list[..-2] +
         [
           [
