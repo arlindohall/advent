@@ -1,9 +1,14 @@
 $_debug = false
 
+def solve =
+  SensorArray
+    .then { |it| it.parse(read_input) }
+    .then { |it| [it.positions_without_beacon, it.tuning_frequency] }
+
 class SensorArray
   shape :sensor_map
 
-  def positions_without_beacon(y = 2_000_000)
+  def positions_without_beacon(y = 2_000_000, include_beacons: false)
     no_beacons =
       sensors
         .map { |s| coverage(s, y) }
@@ -13,7 +18,9 @@ class SensorArray
           combine_and_sort(interval_list, interval)
         end
 
-    _debug(no_beacons:)
+    _debug("Found positions without beacons", no_beacons:)
+    return no_beacons if include_beacons
+
     no_beacons.map { |interval| interval.last - interval.first + 1 }.sum -
       beacons_in(no_beacons, y)
   end
@@ -21,57 +28,45 @@ class SensorArray
   def tuning_frequency(max_y = 4_000_000)
     # show_all_sensors if $_debug
 
-    x, y = single_position_without(max_y)
+    y, int = single_position_without(max_y)
+    _debug(y:, int:)
+
+    x = space_in(int)
 
     4_000_000 * x + y
   end
 
-  # def exhaust(max_y)
-  #   0.upto(max_y) do |y|
-  #     puts y
-  #     0.upto(max_y) do |x|
-  #       next if sensors.any? { |s| dist_to([x, y], s) <= dist(s) }
-  #       return x, y
-  #     end
-  #   end
-  # end
-
-  def cluster_borders
-    biggest_cluster.flatten.map { |i| sensors[i] }.map { |s| borders(s) }
-  end
-
-  def borders(sensor)
-    dist(sensor)
-  end
-
-  def big_from_big_cluster
-    biggest_cluster.filter do |i|
-      s = sensors[i]
-      biggest_cluster
-        .map { |i| sensors[i] }
-        .filter { |other| dist_to(s, other) < dist(s) }
-        .count > 1
+  def single_position_without(max_y)
+    skip_ahead = max_y > 20 ? 2_900_000 : 0
+    (skip_ahead).upto(max_y) do |y|
+      # puts y if y % 10_000 == 0
+      size, intervals = without_beacon_in(max_y, y)
+      _debug("Checking size of leftovers", y:, size:, intervals:)
+      return y, intervals if size == 0
     end
+    nil
   end
 
-  memoize def biggest_cluster
-    sensors
-      .map do |sensor|
-        sensors
-          .each_with_index
-          .filter do |other, i|
-            ds = dist(sensor)
-            dt = dist(other)
-
-            ds + dt + 1 >= dist_to(sensor, other)
-            # [ds + dt + 1, ds + dt + 2].include? dist_to(sensor, other)
-          end
-          .map { |_other, i| i }
+  def without_beacon_in(max_y, y)
+    intervals =
+      positions_without_beacon(
+        y,
+        include_beacons: true
+      ).map do |xi_start, xi_end|
+        xt_start, xt_end =
+          [[[xi_start, 0].max, max_y].min, [[xi_end, 0].max, max_y].min]
+        _debug("Interval truncated: ", :xt_start, xt_start, :xt_end, xt_end)
+        [xt_start, xt_end]
       end
-      .each_with_index
-      .max_by { |neighbors, idx| neighbors.size }
-      .flatten
-      .uniq
+
+    [
+      intervals.map { |xs, xe| xe - xs + 1 }.map { |s| -s }.sum + max_y,
+      intervals
+    ]
+  end
+
+  def space_in(interval)
+    interval.flatten.drop(1).each_slice(2) { |a, b| return a + 1 if a + 1 != b }
   end
 
   def coverage(sensor, level)
@@ -86,7 +81,7 @@ class SensorArray
   end
 
   def combine_and_sort(interval_list, interval)
-    _debug(interval_list:, interval:)
+    # _debug(interval_list:, interval:)
 
     return [interval] if interval_list.empty?
 
@@ -127,54 +122,6 @@ class SensorArray
 
   def sensors
     sensor_map.keys
-  end
-
-  def show_corners(x = nil, y = nil, d = nil)
-    x, y = sensors[x] if y.nil? || d.nil?
-    d = dist([x, y]) if d.nil?
-
-    0.upto(20) do |ya|
-      0.upto(20) do |xa|
-        if [xa, ya] == [14, 11]
-          print("X")
-          next
-        end
-        print ((dist_to([xa, ya], [x, y]) >= d ? "." : "#").darken_squares)
-      end
-      puts
-    end
-  end
-
-  def show_all_sensors
-    0.upto(20) do |ya|
-      0.upto(20) do |xa|
-        if [xa, ya] == [14, 11]
-          print("X")
-          next
-        end
-        print (
-                (
-                  if sensors.any? { |s| dist_to([xa, ya], s) <= dist(s) }
-                    "#"
-                  else
-                    "."
-                  end
-                ).darken_squares
-              )
-      end
-      puts
-    end
-  end
-
-  def cheat_corners
-    sensors
-      .each_with_index
-      .filter do |s, _i|
-        _debug(s:, dist: dist(s), dist_to: dist_to(s, [14, 11]))
-        dist_to(s, [14, 11]) == dist(s) + 1
-      end
-      .map { |s, i| i }
-      .each { |s| show_corners(s) }
   end
 
   class << self
