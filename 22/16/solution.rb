@@ -114,28 +114,34 @@ class Caves
     move_operator(:elephant, :person, state)
   end
 
+  # todo: use a memoized recursive solution that solves for location and visited
+  # and adds the time to the remaining time times all unvisited.
   def move_operator(mover, stayer, state)
     moves = []
     return moves if state.time < 0
 
     time_spent = state.location.dig(mover, :time_left)
-    pressure_opened = valves[state.location.dig(mover, :location)].rate
+    time_of_move = state.time - time_spent
 
-    new_time = state.time - time_spent
-    new_pressure = state.total_pressure + (pressure_opened * state.time)
+    return [] unless time_of_move > 0
 
-    return [] unless new_time > 0
-
-    # _debug(
-    #   "#{mover} can travel to: ",
-    #   valves[state.location.dig(mover, :location)].dists.keys
-    # )
     valves[state.location.dig(mover, :location)].dists.each do |tunnel, dist|
       next if state.opened.include?(tunnel)
 
+      pressure_opened = valves[tunnel].rate
+      time_of_open = time_of_move - dist
+      new_pressure = state.total_pressure + (pressure_opened * time_of_open)
+
+      next if time_of_open < 0
+      if best_state &&
+           possible_pressure(new_pressure, time_of_open, tunnel, state.opened) <
+             best_state.total_pressure
+        next
+      end
+
       next_state =
         State[
-          new_time,
+          time_of_move,
           state.location.merge(
             { mover => { location: tunnel, time_left: dist } },
             {
@@ -146,46 +152,32 @@ class Caves
             }
           ),
           new_pressure,
-          state.opened + [tunnel],
-          state.trace +
-            [
-              "#{mover.to_s.ljust(8)}/#{state.location.dig(mover, :location)}-->#{tunnel}" \
-                "(#{new_pressure.to_s.rjust(6, " ")})",
-              "stay(#{stayer.to_s.ljust(8)}), pressure(#{new_pressure.to_s.ljust(4)}), " \
-                "time(#{new_time.to_s.ljust(2)}), opened(#{state.opened.join(", ")})"
-            ]
+          state.opened + [tunnel]
+          # state.trace +
+          #   [
+          #     "#{mover.to_s.ljust(8)}/#{state.location.dig(mover, :location)}-->#{tunnel}" \
+          #       "(#{new_pressure.to_s.rjust(6, " ")})",
+          #     "stay(#{stayer.to_s.ljust(8)}), pressure(#{new_pressure.to_s.ljust(4)}), " \
+          #       "time(#{time_of_move.to_s.ljust(2)}/#{time_of_open.to_s.ljust(2)}), opened(#{state.opened.join(", ")})"
+          #   ]
         ]
 
       # _debug(state:)
       moves << next_state
     end
 
-    return clear_out(state) if moves.empty?
-
     moves
   end
 
-  def clear_out(state)
-    return [] if state.location.nil?
+  def possible_pressure(total_pressure, time, moving_to, opened)
+    leftover_pressures =
+      valves
+        .filter { |name, _v| !opened.include?(name) && name != moving_to }
+        .map(&:second)
+        .map(&:rate)
+        .sum
 
-    elephant_time = state.location.dig(:elephant, :time_left)
-    person_time = state.location.dig(:person, :time_left)
-
-    elephant_location = state.location.dig(:elephant, :location)
-    person_location = state.location.dig(:person, :location)
-
-    elephant_pressure =
-      valves[elephant_location].rate * (state.time - elephant_time)
-    person_pressure = valves[person_location].rate * (state.time - person_time)
-
-    total_pressure = state.total_pressure
-
-    total_pressure += elephant_pressure if elephant_time < state.time
-    total_pressure += person_pressure if person_time < state.time
-
-    return [] if total_pressure == state.total_pressure
-
-    [State[0, nil, total_pressure, state.opened, state.trace + ["cleared out"]]]
+    total_pressure + (leftover_pressures * time)
   end
 
   class << self
