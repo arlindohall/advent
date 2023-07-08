@@ -116,6 +116,9 @@ class Caves
 
   # todo: use a memoized recursive solution that solves for location and visited
   # and adds the time to the remaining time times all unvisited.
+  # something like def fastest_move(time, visited, mover, stayer) then mover moves
+  # and if it is still less time than stayer moves again or else stayer becomes mover
+  # but either way it's a recursive call and hopefully there is some use of the memo
   def move_operator(mover, stayer, state)
     moves = []
     return moves if state.time < 0
