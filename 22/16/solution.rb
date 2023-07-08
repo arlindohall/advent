@@ -18,11 +18,45 @@ class Caves
     best_state
   end
 
+  def best_with_elephant
+    states = [
+      State[
+        26,
+        {
+          elephant: {
+            location: "AA",
+            time_left: 0
+          },
+          person: {
+            location: "AA",
+            time_left: 0
+          }
+        },
+        0,
+        Set[],
+        []
+      ]
+    ]
+    states = possible_elephants_from(states) until states.empty?
+
+    best_state
+  end
+
   attr_reader :best_state
   def possible_moves_from(states)
     _debug(size: states.size, best_state:)
     states
       .flat_map { |state| moves_from_state(state) }
+      .each do |state|
+        @best_state ||= state
+        @best_state = state if state.total_pressure > @best_state.total_pressure
+      end
+  end
+
+  def possible_elephants_from(states)
+    _debug(size: states.size, best_state:)
+    states
+      .flat_map { |state| elephants_from_state(state) }
       .each do |state|
         @best_state ||= state
         @best_state = state if state.total_pressure > @best_state.total_pressure
@@ -57,67 +91,96 @@ class Caves
     moves
   end
 
-  def best_with_elephant
-    best_pressure(26, Set[], ["AA", 0], ["AA", 0])
+  def elephants_from_state(state)
+    return [] if state.location.nil?
+
+    elephant_time_left = state.location.dig(:elephant, :time_left)
+    person_time_left = state.location.dig(:person, :time_left)
+
+    if elephant_time_left > state.time && person_time_left > state.time
+      return []
+    elsif elephant_time_left < person_time_left
+      move_elephant(state)
+    else
+      move_person(state)
+    end
   end
 
-  memoize def best_pressure(time, visited, mover, stayer)
-    return -1 if time < mover.second || time < stayer.second
-
-    @i ||= 0
-    @i += 1
-    if @i % 10_000 == 0
-      _debug(
-        "working with memo size",
-        memo_size: @__memo[:best_pressure].size,
-        time:,
-        visited:,
-        mover:,
-        stayer:
-      )
-    end
-    # _debug(time:, visited:, mover:, stayer:) if @i < 100
-
-    mover_loc, mover_time = mover
-    stayer_loc, stayer_time = stayer
-
-    moves = valves[mover_loc].dists.keys - visited.to_a
-
-    if moves.empty?
-      r = remaining(time, visited - [stayer_loc, mover_loc])
-
-      r += valves[stayer_loc].rate * (time - stayer_time)
-      r += valves[mover_loc].rate * (time - mover_time)
-
-      return r
-    end
-
-    new_stayer_time = stayer_time - mover_time
-    max = 0
-
-    moves.each do |tunnel|
-      dist = valves[mover_loc].dists[tunnel]
-      new_mover_loc = tunnel
-      new_mover_time = dist
-
-      mv = [new_mover_loc, new_mover_time]
-      st = [stayer_loc, new_stayer_time]
-      mv, st = st, mv if new_mover_time > new_stayer_time
-
-      pressure = best_pressure(time - mover_time, visited + [tunnel], mv, st)
-
-      mover_rate = valves[mover_loc].rate
-      time_to_next_move = mv.second
-      pressure += time_to_next_move * mover_rate
-
-      max = pressure if pressure > max
-    end
-
-    max
+  def move_person(state)
+    move_operator(:person, :elephant, state)
   end
 
-  def remaining(time, visited)
-    visited.map { |v| valves[v].rate * time }.sum
+  def move_elephant(state)
+    move_operator(:elephant, :person, state)
+  end
+
+  # todo: use a memoized recursive solution that solves for location and visited
+  # and adds the time to the remaining time times all unvisited.
+  # something like def fastest_move(time, visited, mover, stayer) then mover moves
+  # and if it is still less time than stayer moves again or else stayer becomes mover
+  # but either way it's a recursive call and hopefully there is some use of the memo
+  def move_operator(mover, stayer, state)
+    moves = []
+    return moves if state.time < 0
+
+    time_spent = state.location.dig(mover, :time_left)
+    time_of_move = state.time - time_spent
+
+    return [] unless time_of_move > 0
+
+    valves[state.location.dig(mover, :location)].dists.each do |tunnel, dist|
+      next if state.opened.include?(tunnel)
+
+      pressure_opened = valves[tunnel].rate
+      time_of_open = time_of_move - dist
+      new_pressure = state.total_pressure + (pressure_opened * time_of_open)
+
+      next if time_of_open < 0
+      if best_state &&
+           possible_pressure(new_pressure, time_of_open, tunnel, state.opened) <
+             best_state.total_pressure
+        next
+      end
+
+      next_state =
+        State[
+          time_of_move,
+          state.location.merge(
+            { mover => { location: tunnel, time_left: dist } },
+            {
+              stayer => {
+                location: state.location.dig(stayer, :location),
+                time_left: state.location.dig(stayer, :time_left) - time_spent
+              }
+            }
+          ),
+          new_pressure,
+          state.opened + [tunnel]
+          # state.trace +
+          #   [
+          #     "#{mover.to_s.ljust(8)}/#{state.location.dig(mover, :location)}-->#{tunnel}" \
+          #       "(#{new_pressure.to_s.rjust(6, " ")})",
+          #     "stay(#{stayer.to_s.ljust(8)}), pressure(#{new_pressure.to_s.ljust(4)}), " \
+          #       "time(#{time_of_move.to_s.ljust(2)}/#{time_of_open.to_s.ljust(2)}), opened(#{state.opened.join(", ")})"
+          #   ]
+        ]
+
+      # _debug(state:)
+      moves << next_state
+    end
+
+    moves
+  end
+
+  def possible_pressure(total_pressure, time, moving_to, opened)
+    leftover_pressures =
+      valves
+        .filter { |name, _v| !opened.include?(name) && name != moving_to }
+        .map(&:second)
+        .map(&:rate)
+        .sum
+
+    total_pressure + (leftover_pressures * time)
   end
 
   class << self
