@@ -1,5 +1,11 @@
 $_debug = false
 
+def solve(input = nil) =
+  [
+    Tetris.parse(input || read_input).play!,
+    Tetris.parse(input || read_input).play!(1_000_000_000_000)
+  ]
+
 class Tetris
   shape :instructions
 
@@ -13,9 +19,9 @@ class Tetris
 
   attr_reader :step, :pieces, :inner_step, :falling
   def play!(limit = 2022)
-    @step = 0
-    @inner_step = 0
-    @pieces = Set[]
+    @step ||= 0
+    @inner_step ||= 0
+    @pieces ||= Set[]
 
     drop_all(limit)
   end
@@ -24,12 +30,75 @@ class Tetris
     loop do
       return top + 1 if step == limit
 
+      return shortcut(limit) if seen_at(step, inner_step)
+
       @falling = shape
       drop_one
       debug
       falling.each { |point| pieces << point }
       @step += 1
     end
+  end
+
+  def shortcut(block_limit)
+    first_occurance_blocks, first_occurance_height = seen_at(step, inner_step)
+    second_occurance_blocks = step
+    second_occurance_height = top + 1
+    one_cycle_blocks = second_occurance_blocks - first_occurance_blocks
+
+    one_cycle_height = second_occurance_height - first_occurance_height
+    number_of_whole_cycles =
+      (block_limit - first_occurance_blocks) / one_cycle_blocks
+
+    leftover_blocks = (block_limit - first_occurance_blocks) % one_cycle_blocks
+    height_of_leftover_blocks =
+      height_at(leftover_blocks + first_occurance_blocks) -
+        first_occurance_height
+
+    _debug(
+      first_occurance_blocks:,
+      first_occurance_height:,
+      second_occurance_blocks:,
+      second_occurance_height:,
+      one_cycle_blocks:,
+      one_cycle_height:,
+      number_of_whole_cycles:,
+      leftover_blocks:,
+      height_of_leftover_blocks:
+    )
+    first_occurance_height + (one_cycle_height * number_of_whole_cycles) +
+      (height_of_leftover_blocks)
+  end
+
+  def height_at(blocks)
+    Tetris.new(instructions: instructions).play!(blocks)
+  end
+
+  def seen_at(step, inner_step)
+    points = ceiling
+    return false if points.nil?
+
+    key = [
+      normalize(points),
+      step % SHAPES.size,
+      inner_step % instructions.size
+    ]
+
+    @seen ||= {}
+    return @seen[key] if @seen[key]
+
+    @seen[key] = [step, top + 1]
+    false
+  end
+
+  def ceiling
+    pieces.group_by(&:first).map(&:second).map(&:max)
+  end
+
+  def normalize(points)
+    ymin = points.map(&:last).min || 0
+
+    scale(points, -ymin)
   end
 
   def drop_one
