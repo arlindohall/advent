@@ -115,3 +115,33 @@ class Vector
     ary.to_vector
   end
 end
+
+class PriorityQueue
+  def initialize(&block)
+    @key = block
+    @hash = Hash.new { |h, k| h[k] = [] }
+  end
+
+  def push(item)
+    @hash[@key.call(item)] << item
+  end
+
+  # Destructive so be careful
+  def +(items)
+    items.each { |it| push(it) }
+    self
+  end
+
+  def shift
+    max = @hash.keys.max
+    value = @hash[max].shift
+
+    @hash.delete(max) if @hash[max].empty?
+
+    value
+  end
+
+  def empty?
+    @hash.empty?
+  end
+end
