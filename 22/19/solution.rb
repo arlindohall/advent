@@ -21,46 +21,18 @@ class Blueprint
     max_geodes * number
   end
 
-  attr_reader :max_found
-  def max_geodes
+  attr_reader :max_found, :queue
+  def max_geodes(time = 24)
     @max_found = 0
-    queue = PriorityQueue.new { |state| weight(state) }
-    queue.push(initial_state)
+    @queue = PriorityQueue.new { |state| state[:geode] }
+    queue.push(initial_state(time))
 
-    queue += make_states(queue.shift) until queue.empty?
+    @queue += make_states(queue.shift) until queue.empty?
+
+    max_found
   end
 
-  def weight(state)
-    ore_value, clay_value, obsidian_value, geode_value = values
-
-    state[:time] *
-      (
-        ore_value * state[:ore_robots] + clay_value * state[:clay_robots] +
-          obsidian_value * state[:obsidian_robots] +
-          geode_value * state[:geode_robots]
-      )
-    +(
-      ore_value * state[:ore] + clay_value * state[:clay] +
-        obsidian_value * state[:obsidian] + geode_value * state[:geodes]
-    )
-  end
-
-  memoize def values
-    geode_value = 1_000_000
-    obsidian_value = geode_value / robot_types[:geode].costs[:obsidian] / 2
-
-    clay_value = [obsidian_value / robot_types[:obsidian].costs[:clay] / 2].max
-
-    ore_value = [
-      geode_value / robot_types[:geode].costs[:ore] / 2,
-      obsidian_value / robot_types[:obsidian].costs[:ore] / 2,
-      clay_value / robot_types[:clay].costs[:ore] / 2
-    ].max
-
-    [ore_value, clay_value, obsidian_value, geode_value]
-  end
-
-  def initial_state(time = 24)
+  def initial_state(time)
     {
       time: 24,
       ore_robots: 1,
@@ -70,86 +42,89 @@ class Blueprint
       obsidian_robots: 0,
       obsidian: 0,
       geode_robots: 0,
-      geodes: 0
+      geode: 0
     }
   end
 
   def make_states(state)
-    @i ||= 0
-    @i += 1
-    _debug("searching state", state:) if @i % 100_000 == 0
-
-    @max_found = [max_found, state[:geodes]].max
+    @max_found = [max_found, state[:geode]].max
 
     return [] if cannot_outproduce_max?(state)
     return [] if state[:time] == 0
 
+    @i ||= 0
+    @i += 1
+    if @i % 10_000 == 0
+      _debug("searching state", size: queue.size, max_found:, state:)
+    end
+
     states = []
 
-    states << make_robot(:geode, state) if can_produce?(:geode, state)
-    states << make_robot(:obsidian, state) if can_produce?(:obsidian, state)
-    states << make_robot(:clay, state) if can_produce?(:clay, state)
-    states << make_robot(:ore, state) if can_produce?(:ore, state)
-    states << build_nothing(state)
+    states << make_robot(:ore, state)
+    states << make_robot(:clay, state)
+    states << make_robot(:obsidian, state)
+    states << make_robot(:geode, state)
 
-    states
+    states.compact #.tap { |it| _debug("states for", old: state, new: it) }
+  end
+
+  memoize def resources
+    %i[ore clay obsidian geode]
+  end
+
+  memoize def robots
+    resources.map { |r| robot(r) }
+  end
+
+  memoize def robot(type)
+    "#{type}_robots".to_sym
   end
 
   def make_robot(type, state)
-    new_state = state.dup
+    time_to_produce = time_for(type, state)
+    return nil if time_to_produce > state[:time]
+    return nil if robot_types[type].costs.keys.any? { |r| state[robot(r)] == 0 }
 
-    buy_robot!(type, new_state)
-    collect_resources!(new_state)
-    build_robot!(type, new_state)
+    state = state.dup
 
-    new_state.merge!(time: state[:time] - 1)
+    # _debug("producing", time_to_produce:, state:)
+    resources.each do |resource|
+      state[resource] += time_to_produce * state[robot(resource)]
+      state[resource] -= robot_types[type].costs[resource] || 0
+    end
+
+    # _debug("calculated resources, adding robot", state:)
+    state[robot(type)] += 1
+    state[:time] = state[:time] - time_to_produce
+
+    # _debug("added robots", state:, time: state[:time])
+    raise "negative value" if state.values.any? { |v| v < 0 }
+    state
   end
 
-  def build_nothing(state)
-    new_state = state.dup
+  def time_for(type, state)
+    needed =
+      resources.filter_map do |cost|
+        next nil unless robot_types[type].costs[cost]
+        needed = (robot_types[type].costs[cost] || 0) - state[cost]
+        [cost, [needed, 0].max]
+      end
 
-    collect_resources!(new_state)
-
-    new_state.merge!(time: state[:time] - 1)
-  end
-
-  def can_produce?(type, state)
-    cost = robot_types[type].costs
-
-    state[:ore] >= (cost[:ore] || 0) && state[:clay] >= (cost[:clay] || 0) &&
-      state[:obsidian] >= (cost[:obsidian] || 0) &&
-      state[:geodes] >= (cost[:geodes] || 0)
-  end
-
-  def buy_robot!(type, state)
-    cost = robot_types[type].costs
-
-    state[:ore] -= cost[:ore] if cost[:ore]
-    state[:clay] -= cost[:clay] if cost[:clay]
-    state[:obsidian] -= cost[:obsidian] if cost[:obsidian]
-    state[:geodes] -= cost[:geodes] if cost[:geodes]
-  end
-
-  def collect_resources!(state)
-    state[:ore] += state[:ore_robots]
-    state[:clay] += state[:clay_robots]
-    state[:obsidian] += state[:obsidian_robots]
-    state[:geodes] += state[:geode_robots]
-  end
-
-  def build_robot!(type, state)
-    state[:ore_robots] += 1 if type == :ore
-    state[:clay_robots] += 1 if type == :clay
-    state[:obsidian_robots] += 1 if type == :obsidian
-    state[:geodes_robots] += 1 if type == :geodes
+    # _debug("calculating time for", type:, needed:, state:)
+    time_needed =
+      needed
+        .map do |type, needed|
+          state[robot(type)].zero? ? 0 : (needed.to_f / state[robot(type)]).ceil
+        end
+        .max
   end
 
   def cannot_outproduce_max?(state)
-    geode_robots = state[:geode_robots]
-    time = state[:time]
+    geode_robots = time = state[:time]
 
-    max_producible = geode_robots * time + (time * (time + 1) / 2)
-    max_producible < max_found
+    max_producible =
+      state[:geode] + (state[:geode_robots] * time) + (time * (time + 1) / 2)
+    max_producible <= max_found
   end
 
   class << self

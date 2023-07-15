@@ -141,7 +141,20 @@ class PriorityQueue
     value
   end
 
+  def pop
+    max = @hash.keys.max
+    value = @hash[max].pop
+
+    @hash.delete(max) if @hash[max].empty?
+
+    value
+  end
+
   def empty?
     @hash.empty?
+  end
+
+  def size
+    @hash.values.map(&:size).sum
   end
 end
