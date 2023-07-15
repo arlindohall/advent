@@ -1,3 +1,5 @@
+$_debug = true
+
 class Geodes
   shape :blueprints
 
@@ -20,86 +22,79 @@ class Blueprint
   end
 
   def max_geodes
-    bfs(24, { ore: 1 }, {}, [])
-  end
-
-  memoize def bfs(time, robots, resources, building_robots)
-    @i ||= 0
-    @i += 1
-    _debug(time:, robots:, resources:, building_robots:) if @i % 10_000 == 0
-    return resources[:geode] if time == 0
-
     max = 0
-    possible_builds(robots, resources).each do |built, depleted_resources|
-      updated_resources = update_resources(robots, depleted_resources)
-      updated_builds = decrement_builds(building_robots, built)
-      updated_robots = update_robots(robots, updated_builds)
-      amount =
-        bfs(
-          time - 1,
-          updated_robots,
-          updated_resources,
-          updated_builds.filter { |robot, time| time > 0 }
-        )
-      max = [max, amount].max
+    queue = [{ time: 24, robots: { ore: 1 }, resources: {} }]
+    i = 0
+
+    until queue.empty?
+      state = queue.shift
+      queue += next_states(state, max)
+      max = [max, state[:resources][:geodes] || 0].max
+      _debug(queue: queue.size, max:, state:) if i % 1000 == 0
+      i += 1
     end
+
     max
   end
 
-  def possible_builds(robots, resources)
-    builds = robot_types.values.map { |r| r.build(resources) }.compact
+  def next_states(state, max_geodes)
+    return [] if cannot_outproduce?(state, max_geodes)
 
-    builds += [[nil, resources]] if saving_up?(robots, resources)
-    builds
-  end
-
-  def saving_up?(robots, resources)
-    robot_types.keys.any? do |type|
-      not_enough_to_build?(type, resources) && could_build?(type, robots)
-    end
-  end
-
-  def not_enough_to_build?(type, resources)
-    robot_types[type].costs.any? do |name, amount|
-      (resources[name] || 0) < amount
-    end
-  end
-
-  def could_build?(type, robots)
-    robot_types[type].costs.all? do |name, count|
-      (count == 0) || ((robots[name] || 0) > 0)
-    end
-  end
-
-  def update_resources(robots, depleted_resources)
     robot_types
-      .map do |type, robot|
-        amount = robots[type] || 0
-        amount += depleted_resources[type] if depleted_resources[type]
+      .flat_map { |type, robot| next_state(state, type, robot) }
+      .compact
+      .uniq
+  end
 
-        [type, amount]
-      end
+  def next_state(state, type, robot)
+    # _debug(state:, type:, robot:)
+    return wait(state) if cannot_afford?(state, robot)
+
+    {
+      time: state[:time] - 1,
+      robots: update_robots(state, robot),
+      resources: update_resources(state),
+      scheduled: type
+    }
+  end
+
+  def wait(state)
+    state.merge(time: state[:time] - 1, resources: update_resources(state))
+  end
+
+  def update_robots(state, robot)
+    scheduled = state[:scheduled]
+    # _debug("robots", state: state[:robots], type: robot.type)
+    state[:robots].merge(
+      robot.type =>
+        (state[:robots][robot.type] || 0) + (robot.type == scheduled ? 1 : 0)
+    )
+  end
+
+  def update_resources(state)
+    # _debug("updating resources", state:)
+    all_resources
+      .map { |r| [r, (state[:resources][r] || 0) + (state[:robots][r] || 0)] }
       .to_h
   end
 
-  def decrement_builds(building_robots, built)
-    builds = building_robots.map { |robot, time| [robot, time - 1] }
-
-    return builds if built.nil?
-
-    builds + [[built, 1]]
+  memoize def all_resources
+    robot_types.map { |type, _robot| type }
   end
 
-  def update_robots(robots, building_robots)
-    robot_types
-      .map do |type, robot|
-        amount = robots[type] || 0
-        amount +=
-          building_robots.count { |robot, time| robot == type && time == 0 }
+  def cannot_afford?(state, robot)
+    # _debug(resources: state[:resources], robot: robot)
+    robot.costs.any? { |name, amount| (state[:resources][name] || 0) < amount }
+  end
 
-        [type, amount]
-      end
-      .to_h
+  def cannot_outproduce?(state, max_geodes)
+    (state[:resources][:geodes] || 0) + max_producible(state[:time]) <=
+      max_geodes
+  end
+
+  def max_producible(time)
+    # sum i = 0 to n of i
+    time * (time + 1) / 2
   end
 
   class << self
@@ -115,18 +110,6 @@ end
 
 class Robot
   shape :type, :costs
-
-  def build(resources)
-    can_build?(resources) ? [type, deplete(resources)] : [nil, resources]
-  end
-
-  def can_build?(resources)
-    costs.all? { |name, amount| (resources[name] || 0) >= amount }
-  end
-
-  def deplete(resources)
-    resources.map { |name, amount| [name, amount - (costs[name] || 0)] }.to_h
-  end
 
   class << self
     def parse(text)
