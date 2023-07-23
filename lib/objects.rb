@@ -104,6 +104,10 @@ class Class
           #{variable_definitions}
         end
 
+        def self.[](**args)
+          new(**args)
+        end
+
         def is_shape? = true
       body
     self.class_eval(body)
