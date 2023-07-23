@@ -4,39 +4,93 @@ class Geodes
   shape :blueprints
 
   def quality_sum
-    blueprints.map { |it| it.quality_level }.sum
+    # blueprints.map { |it| it.quality_level }.sum
+    blueprints.map { |it| [it.max_geodes, it.number] }
   end
 
   class << self
     def parse(text)
-      new(blueprints: text.split("\n\n").map { |it| Blueprint.parse(it) })
+      new(blueprints: text.split("\n").map { |it| Blueprint.parse(it) })
     end
   end
 end
 
 class Blueprint
-  shape :number, :robot_types
+  shape :number, :plans
 
   def quality_level
     max_geodes * number
   end
 
+  # Completely shamelessly stolen from https://todd.ginsberg.com/post/advent-of-code/2022/day19/
+  # Trick was logic to skip building when we already have enough robots to make as much as we
+  # will ever need.
   attr_reader :max_found, :queue
   def max_geodes(time = 24)
     @max_found = 0
     @queue = PriorityQueue.new { |state| state[:geode] }
     queue.push(initial_state(time))
 
-    @queue += make_states(queue.shift) until queue.empty?
+    until queue.empty?
+      state = queue.shift
+      @queue += calculate_next_states(state)
+      if max_found < state[:geode]
+        _debug("max_found", max_found:, state: state)
+        @max_found = state[:geode]
+      end
+    end
 
     max_found
   end
 
+  def calculate_next_states(state)
+    next_states = []
+    @i ||= 0
+
+    return next_states if invalid(state)
+
+    if max(:ore) > state[:ore_robots]
+      next_states << plans[:ore].schedule_build(state)
+    end
+
+    if max(:clay) > state[:clay_robots]
+      next_states << plans[:clay].schedule_build(state)
+    end
+
+    if max(:obsidian) > state[:obsidian_robots] && state[:clay_robots] > 0
+      next_states << plans[:obsidian].schedule_build(state)
+    end
+
+    if state[:obsidian_robots] > 0
+      next_states << plans[:geode].schedule_build(state)
+    end
+
+    next_states.compact.reject { |it| invalid(it) }
+  end
+
+  def invalid(state)
+    return true if cannot_beat_best(state)
+    state.values.any?(&:negative?)
+  end
+
+  def cannot_beat_best(state)
+    best_possible(state) < max_found
+  end
+
+  def best_possible(state)
+    time = state[:time]
+    time * (time - 1) / 2
+  end
+
+  memoize def max(type)
+    plans.values.map(&:costs).map { |it| it[type] || 0 }.max
+  end
+
   def initial_state(time)
     {
-      time: 24,
+      time: time,
       ore_robots: 1,
-      ore: 0,
+      ore: 1,
       clay_robots: 0,
       clay: 0,
       obsidian_robots: 0,
@@ -46,93 +100,13 @@ class Blueprint
     }
   end
 
-  def make_states(state)
-    @max_found = [max_found, state[:geode]].max
-
-    return [] if cannot_outproduce_max?(state)
-    return [] if state[:time] == 0
-
-    @i ||= 0
-    @i += 1
-    if @i % 10_000 == 0
-      _debug("searching state", size: queue.size, max_found:, state:)
-    end
-
-    states = []
-
-    states << make_robot(:ore, state)
-    states << make_robot(:clay, state)
-    states << make_robot(:obsidian, state)
-    states << make_robot(:geode, state)
-
-    states.compact #.tap { |it| _debug("states for", old: state, new: it) }
-  end
-
-  memoize def resources
-    %i[ore clay obsidian geode]
-  end
-
-  memoize def robots
-    resources.map { |r| robot(r) }
-  end
-
-  memoize def robot(type)
-    "#{type}_robots".to_sym
-  end
-
-  def make_robot(type, state)
-    time_to_produce = time_for(type, state)
-    return nil if time_to_produce > state[:time]
-    return nil if robot_types[type].costs.keys.any? { |r| state[robot(r)] == 0 }
-
-    state = state.dup
-
-    # _debug("producing", time_to_produce:, state:)
-    resources.each do |resource|
-      state[resource] += time_to_produce * state[robot(resource)]
-      state[resource] -= robot_types[type].costs[resource] || 0
-    end
-
-    # _debug("calculated resources, adding robot", state:)
-    state[robot(type)] += 1
-    state[:time] = state[:time] - time_to_produce
-
-    # _debug("added robots", state:, time: state[:time])
-    raise "negative value" if state.values.any? { |v| v < 0 }
-    state
-  end
-
-  def time_for(type, state)
-    needed =
-      resources.filter_map do |cost|
-        next nil unless robot_types[type].costs[cost]
-        needed = (robot_types[type].costs[cost] || 0) - state[cost]
-        [cost, [needed, 0].max]
-      end
-
-    # _debug("calculating time for", type:, needed:, state:)
-    time_needed =
-      needed
-        .map do |type, needed|
-          state[robot(type)].zero? ? 0 : (needed.to_f / state[robot(type)]).ceil
-        end
-        .max
-  end
-
-  def cannot_outproduce_max?(state)
-    geode_robots = time = state[:time]
-
-    max_producible =
-      state[:geode] + (state[:geode_robots] * time) + (time * (time + 1) / 2)
-    max_producible <= max_found
-  end
-
   class << self
     def parse(text)
-      number, *robot_types = text.split("\n")
+      number, plans, *_rest = text.split(":")
+      plans = plans.split(".")
       new(
         number: number.split.second.to_i,
-        robot_types: robot_types.map { |it| Robot.parse(it) }.hash_by(&:type)
+        plans: plans.map { |it| Robot.parse(it) }.hash_by(&:type)
       )
     end
   end
@@ -140,6 +114,61 @@ end
 
 class Robot
   shape :type, :costs
+
+  def schedule_build(state)
+    time_required = time_to_build(state)
+    return unless time_required <= state[:time]
+
+    next_state =
+      state.merge(
+        time: state[:time] - time_required,
+        ore: state[:ore] - cost(:ore) + (time_required * state[:ore_robots]),
+        clay:
+          state[:clay] - cost(:clay) + (time_required * state[:clay_robots]),
+        obsidian:
+          state[:obsidian] - cost(:obsidian) +
+            (time_required * state[:obsidian_robots]),
+        geode: state[:geode] + (time_required * state[:geode_robots]),
+        ore_robots: state[:ore_robots] + (type == :ore ? 1 : 0),
+        clay_robots: state[:clay_robots] + (type == :clay ? 1 : 0),
+        obsidian_robots: state[:obsidian_robots] + (type == :obsidian ? 1 : 0),
+        geode_robots: state[:geode_robots] + (type == :geode ? 1 : 0)
+      )
+    # ensure
+    #   if state[:time] > 0 && state[:ore_robots] == costs[:ore] &&
+    #        state[:obsidian_robots] == costs[:obsidian]
+    #     _debug(
+    #       "geode",
+    #       time_required:,
+    #       robots: state[:geode_robots],
+    #       next_state:,
+    #       costs:
+    #     )
+    #   end
+  end
+
+  def time_to_build(state)
+    elements_required.map { |type| time_to_get(state, type) }.max
+  end
+
+  def elements_required
+    costs.keys
+  end
+
+  def time_to_get(state, type)
+    return 1 if state[type] >= cost(type)
+    ((cost(type) - state[type]).to_f / robots(state, type)).ceil.tap do |time|
+      raise "Invalid time zero" if time.zero?
+    end
+  end
+
+  def cost(type)
+    costs[type] || 0
+  end
+
+  def robots(state, type)
+    state["#{type}_robots".to_sym]
+  end
 
   class << self
     def parse(text)
