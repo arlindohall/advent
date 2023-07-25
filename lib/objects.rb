@@ -108,6 +108,17 @@ class Class
           new(**args)
         end
 
+        def [](key)
+          raise NotImplementedError unless respond_to?(key)
+          send(key)
+        end
+
+        def to_s
+          "\#{self.class.name}(" +
+            #{variable_names.map { |name| "\"#{name}=\#{#{name}}" }.join(", \"+ \n")}\" +
+          ")"
+        end
+
         def is_shape? = true
       body
     self.class_eval(body)
