@@ -1,4 +1,10 @@
-$_debug = true
+$_debug = false
+
+def solve(input = nil) =
+  [
+    Geodes.parse(input || read_input).quality_sum,
+    Geodes.parse(input || read_input).largest_product
+  ]
 
 class Geodes
   shape :blueprints
@@ -155,6 +161,11 @@ class State
     params.each { |k, v| other.instance_variable_set("@#{k}", v) }
 
     other
+  end
+
+  def to_s
+    "#{time}(#{ore}or/#{clay}cl/#{obsidian}ob/#{geode}ge//" \
+      "#{ore_robots}or/#{clay_robots}cr/#{obsidian_robots}or/#{geode_robots}gr)"
   end
 end
 
