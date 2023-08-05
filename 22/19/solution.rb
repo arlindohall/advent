@@ -35,12 +35,15 @@ class Blueprint
     until queue.empty?
       state = queue.shift
       next if state.cannot_beat(max_found)
+
       @max_found = [max_found, state.geode].max
       next if state.time == 0
+
       if (@i += 1) % 10_000 == 0
         _debug(number:, max_found:, size: queue.size, state:)
       end
-      @queue += state.calculate_next_states(self)
+      next_states = state.calculate_next_states(self)
+      @queue += next_states
     end
 
     max_found
@@ -90,11 +93,50 @@ class State
         :geode_robots
 
   def calculate_next_states(blueprint)
-    blueprint.plans.map { |_type, robot| robot.build(self) }.compact
+    states = []
+
+    if ore_robots < blueprint.max_ore
+      states << blueprint.plans[:ore].build(self)
+    end
+    if clay_robots < blueprint.max_clay
+      states << blueprint.plans[:clay].build(self)
+    end
+    if obsidian_robots < blueprint.max_obsidian && clay_robots > 0
+      states << blueprint.plans[:obsidian].build(self)
+    end
+    states << blueprint.plans[:geode].build(self) if obsidian_robots > 0
+    states = [grind_geode] if max_fulfilled?(blueprint)
+    states = [run_out_the_clock] if has_geodes_but_cannot_build?(blueprint)
+
+    states.compact
+  end
+
+  def has_geodes_but_cannot_build?(blueprint)
+    return false unless geode > 0
+
+    blueprint.plans[:geode].time_to_make(self) > time
+  end
+
+  def run_out_the_clock
+    State[time: 0, geode: geode + (time * geode_robots)]
+  end
+
+  def grind_geode
+    raise "Building max geodes with geode=#{geode} max_build=#{max_buildable_geodes}}"
+    State[time: 0, geode: geode + max_buildable_geodes]
   end
 
   def cannot_beat(amount)
-    ((time * (time + 1)) / 2) <= amount
+    max_buildable_geodes < amount
+  end
+
+  def max_buildable_geodes
+    geode + ((time * (time + 1)) / 2)
+  end
+
+  def max_fulfilled?(blueprint)
+    blueprint.plans[:geode].costs[:ore] <= ore_robots &&
+      blueprint.plans[:geode].costs[:obsidian] <= obsidian_robots
   end
 
   def robots_for(type)
@@ -114,8 +156,9 @@ class Robot
 
   def build(state)
     return if cannot_build?(state)
+
     time_spent = time_to_make(state)
-    return run_out_the_clock(state) if time_spent > state.time
+    return if time_spent > state.time
 
     ore_collected = time_spent * state.ore_robots
     clay_collected = time_spent * state.clay_robots
@@ -138,10 +181,6 @@ class Robot
   def cannot_build?(state)
     # _debug(state:, costs:)
     costs.keys.any? { |type| state.robots_for(type) < 1 }
-  end
-
-  def run_out_the_clock(state)
-    state.merge(time: 0, geode: state.geode + state.time * state.geode_robots)
   end
 
   %i[ore clay obsidian].each do |type|

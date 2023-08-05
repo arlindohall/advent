@@ -144,3 +144,5 @@ class Numeric
     self <=> 0
   end
 end
+
+Identity = ->(x) { x }

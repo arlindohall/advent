@@ -123,7 +123,11 @@ class PriorityQueue
   end
 
   def push(item)
-    @hash[@key.call(item)] << item
+    key = @key.call(item)
+    @max ||= key
+    @max = key if key > @max
+
+    @hash[key] << item
   end
 
   # Destructive so be careful
@@ -133,19 +137,23 @@ class PriorityQueue
   end
 
   def shift
-    max = @hash.keys.max
-    value = @hash[max].shift
+    value = @hash[@max].shift
 
-    @hash.delete(max) if @hash[max].empty?
+    if @hash[@max].empty?
+      @hash.delete(@max)
+      @max = @hash.keys.max
+    end
 
     value
   end
 
   def pop
-    max = @hash.keys.max
-    value = @hash[max].pop
+    value = @hash[@max].pop
 
-    @hash.delete(max) if @hash[max].empty?
+    if @hash[@max].empty?
+      @hash.delete(@max)
+      @max = @hash.keys.max
+    end
 
     value
   end
