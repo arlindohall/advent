@@ -4,8 +4,11 @@ class Geodes
   shape :blueprints
 
   def quality_sum
-    # blueprints.map { |it| it.quality_level }.sum
-    blueprints.map { |it| [it.max_geodes, it.number] }
+    blueprints.map { |it| it.quality_level }.sum
+  end
+
+  def largest_product(take = 3)
+    blueprints.take(take).map { |it| it.max_geodes(32) }.product
   end
 
   class << self
@@ -93,6 +96,9 @@ class State
         :geode_robots
 
   def calculate_next_states(blueprint)
+    return [run_out_the_clock] if has_geodes_but_cannot_build?(blueprint)
+    return [blueprint.plans[:geode].build(self)] if can_grind_geode?(blueprint)
+
     states = []
 
     if ore_robots < blueprint.max_ore
@@ -105,8 +111,6 @@ class State
       states << blueprint.plans[:obsidian].build(self)
     end
     states << blueprint.plans[:geode].build(self) if obsidian_robots > 0
-    states = [grind_geode] if max_fulfilled?(blueprint)
-    states = [run_out_the_clock] if has_geodes_but_cannot_build?(blueprint)
 
     states.compact
   end
@@ -117,13 +121,14 @@ class State
     blueprint.plans[:geode].time_to_make(self) > time
   end
 
-  def run_out_the_clock
-    State[time: 0, geode: geode + (time * geode_robots)]
+  def can_grind_geode?(blueprint)
+    return false if blueprint.plans[:geode].cannot_build?(self)
+
+    blueprint.plans[:geode].time_to_make(self) == 1
   end
 
-  def grind_geode
-    raise "Building max geodes with geode=#{geode} max_build=#{max_buildable_geodes}}"
-    State[time: 0, geode: geode + max_buildable_geodes]
+  def run_out_the_clock
+    State[time: 0, geode: geode + geode_robots * time, geode_robots: 0]
   end
 
   def cannot_beat(amount)
@@ -131,7 +136,9 @@ class State
   end
 
   def max_buildable_geodes
-    geode + ((time * (time + 1)) / 2)
+    # t = time + 1
+    # geode + ((t * (t + 1)) / 2)
+    geode + (geode_robots * time) + ((time * (time + 1)) / 2)
   end
 
   def max_fulfilled?(blueprint)
