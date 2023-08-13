@@ -148,8 +148,8 @@ class Repl
   def repl
     <<~repl
       irb -r "#{input_helper}" \
-        -r"#{arrays_helper}" \
         -r"#{objects_helper}" \
+        -r"#{arrays_helper}" \
         -r "#{problem.solution_file}" \
         -r "pry" \
         -r "singed" \
@@ -160,8 +160,8 @@ class Repl
   def run_once_requires
     [
       input_helper,
-      arrays_helper,
       objects_helper,
+      arrays_helper,
       "pry",
       "pathname",
       "singed",

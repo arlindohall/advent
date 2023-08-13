@@ -74,6 +74,10 @@ class Array
     map { |i| [i] }
   end
 
+  def to_linked_list
+    CyclicalLinkedList.new(self)
+  end
+
   def count_values
     group_by(&:itself).transform_values(&:count)
   end
@@ -95,6 +99,112 @@ class Array
         self[0][2] * (self[1][0] * self[2][1] - self[1][1] * self[2][0])
     else
       raise "Don't know how to take det of #{shape} matrix"
+    end
+  end
+end
+
+class CyclicalLinkedList
+  class InfiniteLoop < StandardError
+  end
+
+  attr_reader :size
+
+  def initialize(list = nil)
+    list = [] if list.nil?
+    @head = nil
+    @size = 0
+    list.each { |it| insert(it) }
+  end
+
+  def insert(item)
+    @size += 1
+
+    if @head.nil?
+      @head = Node[item]
+      @head.next_node = @head
+      return
+    end
+
+    node = Node[item, @head.next_node]
+    @head.next_node = node
+    @head = node
+  end
+
+  def remove(item)
+    @size -= 1
+
+    cursor = @head
+    start = @head = @head.next_node
+
+    until @head.item == item
+      cursor = @head
+      @head = @head.next_node
+      riase InfiniteLoop, "Item not found" if @head == start
+    end
+
+    cursor.next_node = @head.next_node
+    @head = cursor
+
+    item
+  end
+
+  def scan(item = nil)
+    return (@head = @head.next_node).item if item.nil?
+
+    start = @head
+
+    until @head.item == item
+      @head = @head.next_node
+      raise InfiniteLoop, "Item not found" if @head == start
+    end
+
+    @head.item
+  end
+
+  def skip(n)
+    return if n == 0
+    return skip(@size + n) if n < 0
+
+    n.times { @head = @head.next_node }
+
+    @head.item
+  end
+
+  def each(&block)
+    return self if @head.nil?
+
+    tap do
+      cursor = @head
+      loop do
+        yield cursor.item
+        cursor = cursor.next_node
+        break if cursor == @head
+      end
+    end
+  end
+
+  def to_s
+    "(#{to_a.join("; ")})"
+  end
+
+  def inspect
+    "LinkedList<#{to_s}>"
+  end
+
+  def to_a
+    a = []
+    each { |item| a << item }
+    a
+  end
+
+  class Node
+    shape :item, :next_node
+    attr_accessor :item, :next_node
+
+    class << self
+      def [](item, next_node = nil)
+        new(item:, next_node:)
+      end
     end
   end
 end
