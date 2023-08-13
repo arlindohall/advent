@@ -122,28 +122,39 @@ class CyclicalLinkedList
     if @head.nil?
       @head = Node[item]
       @head.next_node = @head
+      @head.prev_node = @head
       return
     end
 
     node = Node[item, @head.next_node]
-    @head.next_node = node
+
+    before, after = @head, @head.next_node
+
+    before.next_node = node
+    node.prev_node = before
+    node.next_node = after
+    after.prev_node = node
+
     @head = node
   end
 
   def remove(item)
     @size -= 1
 
-    cursor = @head
-    start = @head = @head.next_node
+    start = @head
 
     until @head.item == item
-      cursor = @head
       @head = @head.next_node
       riase InfiniteLoop, "Item not found" if @head == start
     end
 
-    cursor.next_node = @head.next_node
-    @head = cursor
+    before = @head.prev_node
+    after = @head.next_node
+
+    before.next_node = after
+    after.prev_node = before
+
+    @head = before
 
     item
   end
@@ -163,9 +174,12 @@ class CyclicalLinkedList
 
   def skip(n)
     return if n == 0
-    return skip(@size + n) if n < 0
 
-    n.times { @head = @head.next_node }
+    if n > 0
+      n.times { @head = @head.next_node }
+    else
+      (-n).times { @head = @head.prev_node }
+    end
 
     @head.item
   end
@@ -173,12 +187,15 @@ class CyclicalLinkedList
   def each(&block)
     return self if @head.nil?
 
+    guard = 0
+
     tap do
       cursor = @head
       loop do
         yield cursor.item
         cursor = cursor.next_node
         break if cursor == @head
+        raise InfiniteLoop, "More items than list size" if (guard += 1) > size
       end
     end
   end
@@ -198,8 +215,8 @@ class CyclicalLinkedList
   end
 
   class Node
-    shape :item, :next_node
-    attr_accessor :item, :next_node
+    shape :item, :next_node, :prev_node
+    attr_accessor :item, :next_node, :prev_node
 
     class << self
       def [](item, next_node = nil)
