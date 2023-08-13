@@ -160,8 +160,6 @@ class CyclicalLinkedList
   end
 
   def scan(item = nil, &block)
-    return (@head = @head.next_node).item if item.nil?
-
     matcher = block_given? ? block : ->(x) { x == item }
 
     start = @head
@@ -175,11 +173,7 @@ class CyclicalLinkedList
   end
 
   def skip(n)
-    if n >= 0
-      n.times { @head = @head.next_node }
-    else
-      (-n).times { @head = @head.prev_node }
-    end
+    (n % @size).times { @head = @head.next_node }
 
     @head.item
   end
