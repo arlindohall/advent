@@ -159,12 +159,14 @@ class CyclicalLinkedList
     item
   end
 
-  def scan(item = nil)
+  def scan(item = nil, &block)
     return (@head = @head.next_node).item if item.nil?
+
+    matcher = block_given? ? block : ->(x) { x == item }
 
     start = @head
 
-    until @head.item == item
+    until block.call(@head.item)
       @head = @head.next_node
       raise InfiniteLoop, "Item not found" if @head == start
     end
@@ -173,9 +175,7 @@ class CyclicalLinkedList
   end
 
   def skip(n)
-    return if n == 0
-
-    if n > 0
+    if n >= 0
       n.times { @head = @head.next_node }
     else
       (-n).times { @head = @head.prev_node }

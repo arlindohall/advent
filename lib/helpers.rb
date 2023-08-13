@@ -153,6 +153,7 @@ class Repl
         -r "#{problem.solution_file}" \
         -r "pry" \
         -r "singed" \
+        -r "benchmark" \
         -r "#{singed_helper}"
     repl
   end
@@ -165,6 +166,7 @@ class Repl
       "pry",
       "pathname",
       "singed",
+      "benchmark",
       singed_helper,
       problem.solution_file
     ].map { |file| %Q(require "#{file}") }.join(" ; ")

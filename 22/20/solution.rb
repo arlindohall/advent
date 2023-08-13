@@ -13,29 +13,33 @@ class Mixer
 
   def grove_sum!
     mix!
-    grove_coordinates.tap { |it| p(it:) }.sum
+    grove_coordinates.tap { |it| p(it:) }.map { |hash| hash[:num] }.sum
   end
 
   def mix!
-    numbers.each { |num| mix_one(num) }
+    numbers.each_with_index { |num, index| mix_one(num, index) }
   end
 
   def grove_coordinates
-    idx_zero = decrypted.scan(0)
+    idx_zero = decrypted.scan { |it| it[:num] == 0 }
 
     [decrypted.skip(1000), decrypted.skip(1000), decrypted.skip(1000)]
   end
 
-  def mix_one(num)
+  def mix_one(num, index)
     _debug("mixing list", decrypted:)
-    decrypted.remove(num)
+    decrypted.remove({ num:, index: })
     _debug("removed #{num}", decrypted:)
     decrypted.skip(num)
     _debug("skipped #{num}", decrypted:)
-    decrypted.insert(num)
+    decrypted.insert({ num:, index: })
   end
 
   def decrypted
-    @decrypted ||= numbers.dup.to_linked_list
+    @decrypted ||=
+      numbers
+        .each_with_index
+        .map { |num, index| { num:, index: } }
+        .to_linked_list
   end
 end
