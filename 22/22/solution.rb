@@ -345,12 +345,9 @@ class CubeMap < MonkeyMap
     end
 
     def orient
-      c, times = self, 0
-      until c.oriented?
-        c = c.turn_clockwise
-        times += 1
-      end
-      [c, times]
+      c = self
+      c = c.turn_clockwise until c.oriented?
+      c
     end
 
     def oriented?
@@ -384,7 +381,7 @@ class CubeMap < MonkeyMap
     distance.times do
       return if barrier?
 
-      @location, @cube, @heading = advance
+      @location, @cube = advance
       visit
     end
   end
@@ -407,7 +404,7 @@ class CubeMap < MonkeyMap
   end
 
   def barrier?
-    location, cube, _heading = advance
+    location, cube = advance
 
     map
       .barrier?(cube.position_on_map(location))
@@ -419,7 +416,7 @@ class CubeMap < MonkeyMap
     dx, dy = @heading
     naive = [x + dx, y + dy]
 
-    return naive, @cube, @heading if in_bounds?(naive)
+    return naive, @cube if in_bounds?(naive)
 
     rotate_and_advance(naive)
   end
@@ -441,7 +438,7 @@ class CubeMap < MonkeyMap
       raise "Should not rotate because move in bounds"
     end
 
-    rotated_cube, rotations =
+    rotated_cube =
       if x < 0
         cube.rotate_right.orient
       elsif x >= cube_size
@@ -467,32 +464,7 @@ class CubeMap < MonkeyMap
         raise "(#{x}, #{y}) is not out of bounds"
       end
 
-    oriented_location = orient_location(rotated_location, rotations)
-    oriented_heading = orient_heading(rotations)
-
-    [oriented_location, rotated_cube, oriented_heading]
-  end
-
-  def orient_location(location, rotations)
-    x, y = location
-    loc = [x, y, 0].to_vector
-
-    rotations.times { loc = Cube::CLOCKWISE_TURN_MATRIX.matrix_multiply(loc) }
-
-    x, y, z = loc.flatten
-
-    [x < 0 ? cube_size - 1 + x : x, y < 0 ? cube_size - 1 + y : y]
-  end
-
-  def orient_heading(rotations)
-    x, y = @heading
-    heading = [x, y, 0].to_vector
-
-    rotations.times do
-      heading = Cube::CLOCKWISE_TURN_MATRIX.matrix_multiply(heading)
-    end
-
-    heading.flatten
+    [rotated_location, rotated_cube]
   end
 
   def top_left
