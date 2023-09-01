@@ -111,10 +111,12 @@ class MonkeyMap
   end
 
   def follow_path!
+    visit
     @path.each do |direction|
+      _debug("Moving direction", turn: direction.turn, dist: direction.distance)
       @heading = direction.rotate(@heading) if direction.turn
       move(direction.distance)
-      debug
+      debug(direction)
     end
   end
 
@@ -209,21 +211,15 @@ class MonkeyMap
     end
   end
 
-  def debug
+  def debug(direction)
     return unless $_debug
-
-    _debug(
-      "Bounds",
-      col: map.col_bounds,
-      row: map.row_bounds,
-      location: @location
-    )
 
     ymin, ymax = map.col_bounds.values.flatten.minmax
     xmin, xmax = map.row_bounds.values.flatten.minmax
 
     _debug("Printing", xmin:, xmax:, ymin:, ymax:)
 
+    @visited ||= {}
     ymin.upto(ymax) do |y|
       xmin.upto(xmax) do |x|
         print @visited[[x, y]] || map.points[[x, y]] || " "
@@ -235,7 +231,7 @@ end
 
 class CubeMap < MonkeyMap
   class Face
-    shape :original_location, :orientation, :points
+    shape :original_location, :orientation
   end
 
   class Cube
@@ -246,20 +242,17 @@ class CubeMap < MonkeyMap
     UP_TURN_MATRIX = [[1, 0, 0], [0, 0, -1], [0, 1, 0]].transpose
     DOWN_TURN_MATRIX = [[1, 0, 0], [0, 0, 1], [0, -1, 0]].transpose
 
+    CLOCKWISE_TURN_MATRIX = [[0, 1, 0], [-1, 0, 0], [0, 0, 1]].transpose
+
     def contains(face_location)
       faces.values.compact.any? { |f| f.original_location == face_location }
     end
 
-    def barrier?(location)
-      faces[:front].points[location] == "#"
-    end
-
-    def add_face(original_location, points)
+    def add_face(original_location)
       raise "Already a face here" if faces[:front]
       faces[:front] = Face.new(
         original_location: original_location,
-        orientation: basis,
-        points: points
+        orientation: basis
       )
     end
 
@@ -268,15 +261,16 @@ class CubeMap < MonkeyMap
     end
 
     def position_on_map(location)
-      rx, ry, _ = faces[:front].orientation.flatten
       dx, dy = faces[:front].original_location
-
       x, y = location
 
-      x = (x * rx) % 50 + dx
-      y = (y * ry) % 50 + dy
+      rx, ry, rz = faces[:front].orientation.flatten
+      unless rz == 0 && rx == 1 && ry == 1
+        raise "Impossible orienation (#{rx}, #{ry}, #{rz})"
+      end
 
-      [x, y]
+      _debug(l: location, x:, y:, dx:, dy:)
+      [x + dx, y + dy]
     end
 
     def rotate_right
@@ -344,56 +338,54 @@ class CubeMap < MonkeyMap
 
             Face[
               original_location: face.original_location,
-              orientation: matrix.matrix_multiply(face.orientation),
-              points: face.points
+              orientation: matrix.matrix_multiply(face.orientation)
             ]
           end
       ]
     end
 
+    def orient
+      c, times = self, 0
+      until c.oriented?
+        c = c.turn_clockwise
+        times += 1
+      end
+      [c, times]
+    end
+
+    def oriented?
+      x, y, z = faces[:front].orientation.flatten
+
+      raise "Impossible orientation (#{x}, #{y}, #{z})" unless z == 0
+
+      x == 1 && y == 1
+    end
+
+    def turn_clockwise
+      turn(
+        {
+          front: faces[:front],
+          right: faces[:top],
+          back: faces[:back],
+          left: faces[:bottom],
+          top: faces[:left],
+          bottom: faces[:right]
+        },
+        CLOCKWISE_TURN_MATRIX
+      )
+    end
+
     def basis
       [1, 1, 0].to_vector
-    end
-
-    def debug
-      points = {}
-      cube = self
-
-      4.times do
-        points.merge!(cube.transpose_front)
-        cube = cube.rotate_right
-      end
-
-      4.times do
-        points.merge!(cube.transpose_front)
-        cube = cube.rotate_down
-      end
-
-      show_from(points)
-    end
-
-    def transpose_front
-      points = {}
-      tx, ty, _tz = faces[:front].orientation.flatten
-      faces[:front].points.each do |(x, y), value|
-        points[[(x * tx) % size, (y * ty) % size]] = value
-      end
-    end
-
-    def show_from(points)
-      0.upto(4 * size) do |y|
-        0.upto(4 * size) { |x| print points[[x, y]] || " " }
-        puts
-      end
     end
   end
 
   def move(distance)
     distance.times do
-      visit
       return if barrier?
 
-      @location, @cube = advance
+      @location, @cube, @heading = advance
+      visit
     end
   end
 
@@ -415,9 +407,11 @@ class CubeMap < MonkeyMap
   end
 
   def barrier?
-    location, cube = advance
+    location, cube, _heading = advance
 
-    cube.barrier?(location)
+    map
+      .barrier?(cube.position_on_map(location))
+      .tap { |b| _debug("Barrier", location:, head: @heading) if b }
   end
 
   def advance
@@ -425,7 +419,7 @@ class CubeMap < MonkeyMap
     dx, dy = @heading
     naive = [x + dx, y + dy]
 
-    return naive, cube if in_bounds?(naive)
+    return naive, @cube, @heading if in_bounds?(naive)
 
     rotate_and_advance(naive)
   end
@@ -447,15 +441,58 @@ class CubeMap < MonkeyMap
       raise "Should not rotate because move in bounds"
     end
 
-    if x < 0
-      [[cube_size - 1, y], cube.rotate_right]
-    elsif x >= cube_size
-      [[0, y], cube.rotate_left]
-    elsif y < 0
-      [[x, cube_size - 1], cube.rotate_down]
-    elsif y >= cube_size
-      [[x, 0], cube.rotate_up]
+    rotated_cube, rotations =
+      if x < 0
+        cube.rotate_right.orient
+      elsif x >= cube_size
+        cube.rotate_left.orient
+      elsif y < 0
+        cube.rotate_down.orient
+      elsif y >= cube_size
+        cube.rotate_up.orient
+      else
+        raise "(#{x}, #{y}) is not out of bounds"
+      end
+
+    rotated_location =
+      if x < 0
+        [cube_size - 1, y]
+      elsif x >= cube_size
+        [0, y]
+      elsif y < 0
+        [x, cube_size - 1]
+      elsif y >= cube_size
+        [x, 0]
+      else
+        raise "(#{x}, #{y}) is not out of bounds"
+      end
+
+    oriented_location = orient_location(rotated_location, rotations)
+    oriented_heading = orient_heading(rotations)
+
+    [oriented_location, rotated_cube, oriented_heading]
+  end
+
+  def orient_location(location, rotations)
+    x, y = location
+    loc = [x, y, 0].to_vector
+
+    rotations.times { loc = Cube::CLOCKWISE_TURN_MATRIX.matrix_multiply(loc) }
+
+    x, y, z = loc.flatten
+
+    [x < 0 ? cube_size - 1 + x : x, y < 0 ? cube_size - 1 + y : y]
+  end
+
+  def orient_heading(rotations)
+    x, y = @heading
+    heading = [x, y, 0].to_vector
+
+    rotations.times do
+      heading = Cube::CLOCKWISE_TURN_MATRIX.matrix_multiply(heading)
     end
+
+    heading.flatten
   end
 
   def top_left
@@ -487,7 +524,7 @@ class CubeMap < MonkeyMap
   def parse_face(face_start)
     return if cube.contains(face_start)
 
-    cube.add_face(face_start, points_from(face_start))
+    cube.add_face(face_start)
 
     if cube_to_left(face_start)
       rotate(:right)
@@ -554,20 +591,6 @@ class CubeMap < MonkeyMap
 
   def cube_face_at(point)
     point if map.points.key?(point)
-  end
-
-  def points_from(face_start)
-    x, y = face_start
-    points = {}
-
-    0.upto(cube_size - 1) do |py|
-      0.upto(cube_size - 1) do |px|
-        tx, ty = x + px, y + py
-        points[[tx, ty]] = map.points[[tx, ty]]
-      end
-    end
-
-    points
   end
 
   def cube
