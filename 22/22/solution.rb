@@ -1,6 +1,6 @@
-$_debug = true
+$_debug = false
 
-def solve(input) =
+def solve(input = nil) =
   [
     MonkeyMap.parse(input || read_input(strip: false)).final_password,
     CubeMap.parse(input || read_input(strip: false)).final_password
@@ -113,7 +113,7 @@ class MonkeyMap
   def follow_path!
     visit
     @path.each do |direction|
-      _debug("Moving direction", turn: direction.turn, dist: direction.distance)
+      # _debug("Moving direction", turn: direction.turn, dist: direction.distance)
       @heading = direction.rotate(@heading) if direction.turn
       move(direction.distance)
       debug(direction)
@@ -202,11 +202,11 @@ class MonkeyMap
     case @heading
     when [1, 0]
       0
-    when [0, -1]
+    when [0, 1]
       1
     when [-1, 0]
       2
-    when [0, 1]
+    when [0, -1]
       3
     end
   end
@@ -217,7 +217,7 @@ class MonkeyMap
     ymin, ymax = map.col_bounds.values.flatten.minmax
     xmin, xmax = map.row_bounds.values.flatten.minmax
 
-    _debug("Printing", xmin:, xmax:, ymin:, ymax:)
+    _debug("Printing", xmin:, xmax:, ymin:, ymax:, location: @location)
 
     @visited ||= {}
     ymin.upto(ymax) do |y|
@@ -269,7 +269,7 @@ class CubeMap < MonkeyMap
         raise "Impossible orienation (#{rx}, #{ry}, #{rz})"
       end
 
-      _debug(l: location, x:, y:, dx:, dy:)
+      # _debug(l: location, x:, y:, dx:, dy:)
       [x + dx, y + dy]
     end
 
@@ -350,6 +350,15 @@ class CubeMap < MonkeyMap
       c
     end
 
+    def to_orient
+      c, count = self, 0
+      until c.oriented?
+        c = c.turn_clockwise
+        count += 1
+      end
+      count
+    end
+
     def oriented?
       x, y, z = faces[:front].orientation.flatten
 
@@ -377,12 +386,25 @@ class CubeMap < MonkeyMap
     end
   end
 
+  def final_password
+    @heading = [1, 0]
+    @location = top_left
+
+    follow_path!
+
+    @location = cube.position_on_map(@location)
+    @heading = counter_clockwise(cube.to_orient, @heading)
+
+    password
+  end
+
   def move(distance)
     distance.times do
       return if barrier?
 
-      @location, @cube = advance
+      @location, @cube, @heading = advance
       visit
+      debug(@heading)
     end
   end
 
@@ -404,11 +426,10 @@ class CubeMap < MonkeyMap
   end
 
   def barrier?
-    location, cube = advance
+    location, cube, _heading = advance
 
-    map
-      .barrier?(cube.position_on_map(location))
-      .tap { |b| _debug("Barrier", location:, head: @heading) if b }
+    map.barrier?(cube.position_on_map(location))
+    # .tap { |b| _debug("Barrier", location:, head: @heading) if b }
   end
 
   def advance
@@ -416,7 +437,7 @@ class CubeMap < MonkeyMap
     dx, dy = @heading
     naive = [x + dx, y + dy]
 
-    return naive, @cube if in_bounds?(naive)
+    return naive, @cube, @heading if in_bounds?(naive)
 
     rotate_and_advance(naive)
   end
@@ -440,13 +461,13 @@ class CubeMap < MonkeyMap
 
     rotated_cube =
       if x < 0
-        cube.rotate_right.orient
+        cube.rotate_right
       elsif x >= cube_size
-        cube.rotate_left.orient
+        cube.rotate_left
       elsif y < 0
-        cube.rotate_down.orient
+        cube.rotate_down
       elsif y >= cube_size
-        cube.rotate_up.orient
+        cube.rotate_up
       else
         raise "(#{x}, #{y}) is not out of bounds"
       end
@@ -464,7 +485,26 @@ class CubeMap < MonkeyMap
         raise "(#{x}, #{y}) is not out of bounds"
       end
 
-    [rotated_location, rotated_cube]
+    rotations_to_orient = rotated_cube.to_orient
+    rotated_heading = counter_clockwise(rotations_to_orient, @heading)
+
+    oriented_location = count_clock_loc(rotations_to_orient, rotated_location)
+
+    [oriented_location, rotated_cube.orient, rotated_heading]
+  end
+
+  def counter_clockwise(count, (x, y))
+    count.times { x, y = -y, x }
+    [x, y]
+  end
+
+  def count_clock_loc(count, (x, y))
+    count.times { x, y = one_counter_rotation(x, y) }
+    [x, y]
+  end
+
+  def one_counter_rotation(x, y)
+    [cube_size - y - 1, x]
   end
 
   def top_left
@@ -567,16 +607,6 @@ class CubeMap < MonkeyMap
 
   def cube
     @cube ||= Cube.new(size: cube_size)
-  end
-
-  def row
-    x, _y = cube.position_on_map(@location)
-    x
-  end
-
-  def column
-    _x, y = cube.position_on_map(@location)
-    y
   end
 
   memoize def cube_size
