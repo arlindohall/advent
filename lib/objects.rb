@@ -146,3 +146,15 @@ class Numeric
 end
 
 Identity = ->(x) { x }
+
+class NilClass
+  def option_map(&block)
+    nil
+  end
+end
+
+class Object
+  def option_map(&block)
+    block.call(self)
+  end
+end
