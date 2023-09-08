@@ -23,7 +23,7 @@ class Blizzard
       .compact
   end
 
-  def finished?
+  def finished?(elf)
     elf == [bounds.first - 2, bounds.last - 1]
   end
 
@@ -39,28 +39,20 @@ class Blizzard
     Searcher.new(self).shortest_path
   end
 
-  def possible_moves
-    ElfMover.new(blizzard_game: self).possible_moves
+  def initial_state
+    State[elf:, time: 0]
   end
 
-  def update
-    Blizzard.new(blizzards: next_blizzards, elf:, bounds:)
+  def blizzard_at?(state)
+    blizzard_predictor.blizzard_at?(state)
   end
 
-  def next_blizzards
-    blizzard_updater.update
+  def out_of_bounds?(pt)
+    BlizzardUpdater.new(blizzards:, bounds:).out_of_bounds?(pt)
   end
 
-  def blizzard_updater
-    BlizzardUpdater.new(blizzards:, bounds:)
-  end
-
-  def out_of_bounds?(point)
-    blizzard_updater.out_of_bounds?(point)
-  end
-
-  def with_elf(elf)
-    Blizzard.new(blizzards: blizzards, elf: elf, bounds: bounds)
+  def blizzard_predictor
+    @_blizzard_predictor ||= BlizzardPredictor.new(blizzards, bounds)
   end
 
   def debug
@@ -90,6 +82,98 @@ class Blizzard
         blizzards[pt].size
       end
     )
+  end
+end
+
+class Searcher
+  def initialize(blizzard_game)
+    @blizzard_game = blizzard_game
+    @states = [blizzard_game.initial_state]
+  end
+
+  def shortest_path
+    until @states.any? { |s| @blizzard_game.finished?(s.elf) }
+      @states =
+        @states.flat_map { |s| possible_moves(s) }.reject { |s| seen?(s.uniq) }
+      _debug("Searching states", size: @states.size)
+
+      binding.pry if @states.empty?
+      raise "No path founds" if @states.empty?
+    end
+
+    @states.find { |s| @blizzard_game.finished?(s.elf) }
+  end
+
+  def seen?(state)
+    @seen ||= Set.new
+    return true if @seen.include?(state)
+
+    @seen << state
+    false
+  end
+
+  def possible_moves(state)
+    state.possible_moves(@blizzard_game)
+  end
+end
+
+class State
+  shape :elf, :time
+
+  def uniq
+    [elf, time]
+  end
+
+  def possible_moves(blizzard_game)
+    all_moves
+      .reject { |pt| blizzard_game.out_of_bounds?(pt) }
+      .map { |pt| State[elf: pt, time: time + 1] }
+      .reject { |st| blizzard_game.blizzard_at?(st) }
+  end
+
+  def all_moves
+    x, y = elf
+
+    [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1], [x, y]]
+  end
+end
+
+class BlizzardPredictor
+  def initialize(blizzards, bounds)
+    @blizzards = blizzards
+    @bounds = bounds
+  end
+
+  def blizzard_at?(state)
+    mod_time = state.time % lcm_of_board_dimensions
+    raise "Out of time bounds" unless blizzard_predictions[mod_time]
+
+    !!blizzard_predictions[mod_time][state.elf]
+  end
+
+  def blizzard_predictions
+    return @predictions if @predictions
+
+    @predictions = {}
+
+    lcm_of_board_dimensions.times do |i|
+      @predictions[i] = @blizzards
+      update_blizzards
+    end
+  end
+
+  def lcm_of_board_dimensions
+    x, y = @bounds.map { |b| b - 2 }
+
+    x.lcm(y)
+  end
+
+  def update_blizzards
+    @blizzards = blizzard_updater.update
+  end
+
+  def blizzard_updater
+    BlizzardUpdater.new(blizzards: @blizzards, bounds: @bounds)
   end
 end
 
@@ -134,81 +218,5 @@ class BlizzardUpdater
     return 1 if value >= bound - 1
 
     value
-  end
-end
-
-class ElfMover
-  shape :blizzard_game
-
-  def possible_moves
-    moves_from(blizzard_game.update, blizzard_game.elf)
-  end
-
-  def moves_from(future_board, current_elf)
-    all_moves(current_elf)
-      .filter { |point| in_bounds?(point) }
-      .filter { |(x, y)| future_board.blizzards[[x, y]].nil? }
-      .map { |move| future_board.with_elf(move) }
-  end
-
-  def all_moves((x, y))
-    [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1], [x, y]]
-  end
-
-  def in_bounds?(point)
-    !blizzard_game.out_of_bounds?(point)
-  end
-end
-
-class StateTracker
-  def initialize(state, history = [])
-    @state = state
-    @history = history
-  end
-
-  def possible_moves
-    @state.possible_moves.map do |move|
-      StateTracker.new(move, @history + [@state])
-    end
-  end
-
-  def finished?
-    @state.finished?
-  end
-
-  def size
-    @history.size
-  end
-
-  def history
-    @history
-  end
-
-  def uniq
-    [@state.blizzards, @state.elf]
-  end
-end
-
-class Searcher
-  def initialize(blizzard_game_state)
-    @states = [StateTracker.new(blizzard_game_state)]
-  end
-
-  def shortest_path
-    until @states.any?(&:finished?)
-      @states = @states.flat_map(&:possible_moves).reject { |s| seen?(s.uniq) }
-      _debug("Searching...", steps: @states.first&.size, states: @states.size)
-      @states.first.history.last.debug
-    end
-
-    @states.find { |s| s.finished? }.history
-  end
-
-  def seen?(state)
-    @seen ||= Set.new
-    return true if @seen.include?(state)
-
-    @seen << state
-    false
   end
 end
