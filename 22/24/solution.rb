@@ -1,4 +1,7 @@
-$_debug = true
+$_debug = false
+
+def solve(input = read_input) =
+  [Blizzard.parse(input).fewest_moves, Blizzard.parse(input).fewest_round_trip]
 
 class Blizzard
   shape :blizzards, :elf, :bounds
@@ -24,7 +27,12 @@ class Blizzard
   end
 
   def finished?(elf)
-    elf == [bounds.first - 2, bounds.last - 1]
+    elf == target
+  end
+
+  attr_accessor :target
+  def target
+    @target || [bounds.first - 2, bounds.last - 1]
   end
 
   def self.bounds(text)
@@ -32,11 +40,19 @@ class Blizzard
   end
 
   def fewest_moves
-    shortest_path.size
+    shortest_path.time
+  end
+
+  def fewest_round_trip
+    shortest_round_trip.time
   end
 
   def shortest_path
     Searcher.new(self).shortest_path
+  end
+
+  def shortest_round_trip
+    RoundTripSearcher.new(self).shortest_path
   end
 
   def initial_state
@@ -86,9 +102,9 @@ class Blizzard
 end
 
 class Searcher
-  def initialize(blizzard_game)
+  def initialize(blizzard_game, state = nil)
     @blizzard_game = blizzard_game
-    @states = [blizzard_game.initial_state]
+    @states = [state || blizzard_game.initial_state]
   end
 
   def shortest_path
@@ -114,6 +130,32 @@ class Searcher
 
   def possible_moves(state)
     state.possible_moves(@blizzard_game)
+  end
+end
+
+class RoundTripSearcher
+  def initialize(blizzard_game)
+    @blizzard_game = blizzard_game
+    @start = blizzard_game.initial_state.elf
+    @finish = blizzard_game.target
+  end
+
+  def shortest_path
+    state = get_there(@blizzard_game.initial_state)
+    state = go_back(state)
+    state = get_there(state)
+
+    state
+  end
+
+  def get_there(state)
+    @blizzard_game.target = @finish
+    Searcher.new(@blizzard_game, state).shortest_path
+  end
+
+  def go_back(state)
+    @blizzard_game.target = @start
+    Searcher.new(@blizzard_game, state).shortest_path
   end
 end
 
@@ -204,7 +246,7 @@ class BlizzardUpdater
   end
 
   def out_of_bounds?((x, y))
-    return false if [x, y] == [bounds.first - 2, bounds.last - 1]
+    return false if [x, y] == target || [x, y] == start
 
     x < 1 || y < 1 || x >= bounds.first - 1 || y >= bounds.last - 1
   end
@@ -218,5 +260,13 @@ class BlizzardUpdater
     return 1 if value >= bound - 1
 
     value
+  end
+
+  def target
+    [bounds.first - 2, bounds.last - 1]
+  end
+
+  def start
+    [1, 0]
   end
 end
