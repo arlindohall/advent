@@ -1,5 +1,7 @@
+$_debug = false
+
 def solve(input = read_input) =
-  SeedMap.new(input).then { |sm| [sm.lowest_location] }
+  SeedMap.new(input).then { |sm| [sm.lowest_location, sm.lowest_range] }
 
 class SeedMap
   def initialize(text)
@@ -63,7 +65,7 @@ class Conversion
   def apply(seed)
     ranges_for_debug = ranges.map { |r| [r.source_range, r.dest_start] }
     _debug("applying conversion", name, seed, ranges_for_debug)
-    puts @block
+    # puts @block
     seed.convert(ranges) #.tap { |converted| _debug("converted", converted) }
   end
 end
@@ -82,7 +84,7 @@ class ConversionRange
   end
 
   def source_range
-    source_start..(@line.split.last.to_i + source_start)
+    source_start...(@line.split.last.to_i + source_start)
   end
 
   def accept?(seed)
@@ -121,7 +123,7 @@ class SeedRanges
 
   def overlap?(range)
     @ranges.any? do |start, size|
-      sub_range = (start.to_i..(start.to_i + size.to_i))
+      sub_range = (start.to_i...(start.to_i + size.to_i))
       range.include?(start.to_i) || range.include?(start.to_i + size.to_i) ||
         sub_range.include?(range.first) || sub_range.include?(range.last)
     end
@@ -157,11 +159,12 @@ class SeedRangeConversionStep
 
     save_one_range until @cursor >= @start + @size
 
+    _debug("converted range", [@start, @size], @result)
     @result
   end
 
   def save_one_range
-    # _debug("saving one range", @cursor, @start, @size)
+    _debug("saving one range", cursor: @cursor, start: @start, size: @size)
     if in_range?
       @result << mapped_range_from_current_cursor
     else
@@ -182,6 +185,7 @@ class SeedRangeConversionStep
       @conversion_ranges.filter { |range| range.source_start > @cursor }
 
     if next_ranges.empty?
+      _debug("unmapped with no ranges")
       # _debug("no mapping, keeping", @cursor, @size)
       old_cursor, @cursor = @cursor, @cursor + @size
       return old_cursor, @size
@@ -189,7 +193,9 @@ class SeedRangeConversionStep
 
     next_range = next_ranges.min_by { |range| range.source_start }
 
-    map_range(next_range, next_range.source_start - 1)
+    _debug("unmapped with next range")
+    old_cursor, @cursor = @cursor, next_range.source_start
+    [old_cursor, next_range.source_start - old_cursor - 1]
   end
 
   def mapped_range_from_current_cursor
@@ -199,8 +205,10 @@ class SeedRangeConversionStep
 
     # _debug("mapping range for current cursor", end_of_range:, end_of_input:)
     if end_of_range > end_of_input
+      _debug("map from cursor to end of input (seed, etc.)")
       map_range(current_range, end_of_input)
     else
+      _debug("map from cursor to range")
       map_range(current_range, end_of_range)
     end
   end
@@ -211,6 +219,7 @@ class SeedRangeConversionStep
 
     # _debug("mapping range", range_mapping:, old_cursor:)
     # _debug("mapping range (2)", cursor: @cursor, shift:, input_end:)
-    [old_cursor + shift, input_end - old_cursor + 1]
+    _debug("calculation is here", old_cursor, @cursor, shift, range_mapping)
+    [old_cursor + shift, @cursor - old_cursor]
   end
 end
