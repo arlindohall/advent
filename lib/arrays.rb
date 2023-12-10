@@ -78,6 +78,10 @@ class Array
     CyclicalLinkedList.new(self)
   end
 
+  def count_by(&block)
+    group_by(&block).transform_values(&:size)
+  end
+
   def count_values
     group_by(&:itself).transform_values(&:count)
   end
