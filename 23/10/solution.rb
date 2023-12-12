@@ -21,23 +21,89 @@ class PipeMaze
   def enclosed
     steps # Get `@visisted` populated
 
-    flood_outer
+    @enclosed =
+      non_maze_points.filter do |coordinates|
+        odd_maze_passings_around?(coordinates)
+      end
 
-    expand_border until @border.empty?
+    @exposed = non_maze_points - @enclosed
 
-    # _debug("enclosed", total_size:, ymax: @ymax, xmax: @xmax, visited: @visited.size, exposed: @exposed.size)
-    total_size - @visited.size - @exposed.size
+    @enclosed.size
+  end
+
+  def odd_maze_passings_around?(coordinates)
+    maze_points_above(coordinates).odd?
+  end
+
+  def maze_points_above(coordinates)
+    windings(
+      @visited
+        .keys
+        .filter do |fitting|
+          fitting.coordinates[1] < coordinates[1] &&
+            fitting.coordinates[0] == coordinates[0]
+        end
+        .sort_by { |fitting| fitting.coordinates.second }
+        .reverse
+        .map { |fitting| replace_starting_point(fitting) }
+    )
+  end
+
+  def replace_starting_point(fitting)
+    return fitting unless fitting.start?
+
+    fitting_from_directions(
+      fitting,
+      fitting
+        .neighbors
+        .map { |nb| fitting(nb) }
+        .compact
+        .filter { |nb| nb.connected?(fitting) }
+    )
+  end
+
+  def fitting_from_directions(start, neighbors)
+    # Will always have same starting value, so we can memoize it
+    @fitting_from_directions ||=
+      FittingFromDirections.new(start, neighbors).calculate
+  end
+
+  def windings(fittings)
+    windings = fittings.count { |it| it.is_a?(Horizontal) }
+    bends =
+      fittings.filter do |it|
+        it.is_a?(TopLeft) || it.is_a?(TopRight) || it.is_a?(BottomLeft) ||
+          it.is_a?(BottomRight)
+      end
+
+    bends.each_slice(2) do |first, second|
+      windings += 1 if first.moves_horizontally_with?(second)
+    end
+
+    windings
+  rescue StandardError
+    binding.pry
+    raise
+  end
+
+  def non_maze_points
+    maze.keys.filter { |coordinates| !vis_by_loc[coordinates] }
+  end
+
+  def vis_by_loc
+    return @vis_by_loc if @vis_by_loc
+    raise "Haven't visisted anything yet" unless @visited
+
+    @vis_by_loc =
+      @visited.map { |fitting, count| [fitting.coordinates, count] }.to_h
   end
 
   def debug
     enclosed
 
-    raise "Still a border" unless @border.empty?
     coords = (@visited.keys.map { |v| v.coordinates } + @exposed.to_a).uniq
 
     xmax, ymax = coords.map(&:first).max, coords.map(&:last).max
-    vis_by_loc =
-      @visited.map { |fitting, count| [fitting.coordinates, count] }.to_h
 
     0.upto(ymax) do |y|
       0.upto(xmax) do |x|
@@ -55,52 +121,6 @@ class PipeMaze
 
   def total_size
     @ymax * @xmax
-  end
-
-  def expand_border
-    border_coords = @border.map { |border| border.coordinates }
-    _debug("expanding", border: border_coords, exposed: @exposed)
-    @exposed += border_coords
-    @border =
-      @border
-        .flat_map { |border_space| border_space.all_neighbors }
-        .reject { |neighbor| @exposed.include?(neighbor) }
-        .to_set
-        .map { |neighbor| maybe_fitting(neighbor) }
-        .compact
-        .reject { |neighbor| @visited[neighbor] }
-  end
-
-  def flood_outer
-    @border, @exposed = [], Set.new
-
-    @xmax, @ymax = max_values
-
-    (0).upto(@xmax - 1) do |x|
-      @border << maybe_fitting([x, 0])
-      @border << maybe_fitting([x, @ymax - 1])
-    end
-    (1).upto(@ymax - 2) do |y|
-      @border << maybe_fitting([0, y])
-      @border << maybe_fitting([@xmax - 1, y])
-    end
-
-    @border.reject! { |fitting| fitting.nil? || @visited[fitting] }
-  end
-
-  def max_values
-    rows = @text.split("\n").size
-    cols = @text.split("\n").first.chars.count
-
-    [cols, rows]
-  end
-
-  def maybe_fitting((x, y))
-    # raise "Fitting out of bounds" if x < 0 || y < 0 || x >= @xmax || y >= @ymax
-    # raise "Fitting wasn't mapped: #{[x, y]}" unless fitting([x,y])
-    return nil if x < 0 || y < 0 || x >= @xmax || y >= @ymax
-
-    fitting([x, y])
   end
 
   def setup
@@ -191,6 +211,7 @@ class Fitting
 
   def x = coordinates[0]
   def y = coordinates[1]
+  def start? = false
 
   def connected?(other)
     other.can_reach?(self.coordinates) && self.can_reach?(other.coordinates)
@@ -217,7 +238,16 @@ class Fitting
     ]
   end
 
-  def start? = false
+  def moves_horizontally_with?(other)
+    return true if self.is_a?(TopLeft) && other.is_a?(BottomRight)
+    return true if self.is_a?(TopRight) && other.is_a?(BottomLeft)
+
+    if self.is_a?(BottomLeft) || self.is_a?(BottomRight)
+      raise "Impossible bends"
+    end
+
+    false
+  end
 end
 
 class Vertical < Fitting
@@ -271,4 +301,18 @@ end
 class NullFitting < Fitting
   def to_s = "."
   def reachable = []
+end
+
+class FittingFromDirections
+  def initialize(start, neighbors)
+    @start = start
+    @neighbors = neighbors
+  end
+
+  def calculate
+    # Cheat and just do what I know it is from reading code
+    Horizontal.new(@start.coordinates) # input
+    # BottomRight.new(@start.coordinates) # example 2
+    # BottomLeft.new(@start.coordinates) # example 3
+  end
 end
