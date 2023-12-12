@@ -25,15 +25,32 @@ class PipeMaze
 
     expand_border until @border.empty?
 
-    _debug(
-      "enclosed",
-      total_size:,
-      ymax: @ymax,
-      xmax: @xmax,
-      visited: @visited.size,
-      exposed: @exposed.size
-    )
+    # _debug("enclosed", total_size:, ymax: @ymax, xmax: @xmax, visited: @visited.size, exposed: @exposed.size)
     total_size - @visited.size - @exposed.size
+  end
+
+  def debug
+    enclosed
+
+    raise "Still a border" unless @border.empty?
+    coords = (@visited.keys.map { |v| v.coordinates } + @exposed.to_a).uniq
+
+    xmax, ymax = coords.map(&:first).max, coords.map(&:last).max
+    vis_by_loc =
+      @visited.map { |fitting, count| [fitting.coordinates, count] }.to_h
+
+    0.upto(ymax) do |y|
+      0.upto(xmax) do |x|
+        if @exposed.include?([x, y])
+          NonFitting.new("O")
+        elsif vis_by_loc[[x, y]]
+          fitting([x, y])
+        else
+          NonFitting.new("I")
+        end.to_s.then { |s| print s }
+      end
+      puts
+    end
   end
 
   def total_size
@@ -93,7 +110,7 @@ class PipeMaze
   end
 
   def increment
-    _debug("incrementing states", steps: @steps, states: @states)
+    # _debug("incrementing states", steps: @steps, states: @states)
 
     @states.each { |state| @visited[state] = @steps }
     @steps += 1
@@ -135,6 +152,16 @@ class PipeMaze
   end
 end
 
+class NonFitting
+  def initialize(char)
+    @char = char
+  end
+
+  def to_s
+    @char
+  end
+end
+
 class Fitting
   def self.for(char, coordinates)
     case char
@@ -156,9 +183,7 @@ class Fitting
       NullFitting
     end.new(coordinates)
   end
-end
 
-class Fitting
   attr_reader :coordinates
   def initialize(coordinates)
     @coordinates = coordinates
@@ -196,46 +221,54 @@ class Fitting
 end
 
 class Vertical < Fitting
+  def to_s = "|"
   def reachable
     [[x, y + 1], [x, y - 1]]
   end
 end
 
 class Horizontal < Fitting
+  def to_s = "-"
   def reachable
     [[x + 1, y], [x - 1, y]]
   end
 end
 
 class BottomRight < Fitting
+  def to_s = "F"
   def reachable
     [[x + 1, y], [x, y + 1]]
   end
 end
 
 class BottomLeft < Fitting
+  def to_s = "7"
   def reachable
     [[x - 1, y], [x, y + 1]]
   end
 end
 
 class TopLeft < Fitting
+  def to_s = "J"
   def reachable
     [[x - 1, y], [x, y - 1]]
   end
 end
 
 class TopRight < Fitting
+  def to_s = "L"
   def reachable
     [[x + 1, y], [x, y - 1]]
   end
 end
 
 class StartingPoint < Fitting
+  def to_s = "S"
   def reachable = neighbors
   def start? = true
 end
 
 class NullFitting < Fitting
+  def to_s = "."
   def reachable = []
 end
