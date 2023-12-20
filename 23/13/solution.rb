@@ -1,5 +1,5 @@
 def solve(input = read_input) =
-  AshPatterns.new(input).then { |ap| [ap.note_summary] }
+  AshPatterns.new(input).then { |ap| [ap.note_summary, ap.smudge_summary] }
 
 class AshPatterns
   def initialize(text)
@@ -10,8 +10,19 @@ class AshPatterns
     lines_of_refelction.map { |line| line.score }.sum
   end
 
+  def smudge_summary
+    smudged_reflections.map { |line| line.score }.sum
+  end
+
   def lines_of_refelction
     reflected_images.map { |image| image.line_of_reflection }
+  end
+
+  def smudged_reflections
+    @text
+      .split("\n\n")
+      .map { |blob| SmudgedImage.new(blob) }
+      .map { |image| image.line_of_reflection }
   end
 
   def reflected_images
@@ -48,7 +59,11 @@ class ReflectedImage
     pattern
       .each_index
       .drop(1)
-      .map { |index| DivisionBeforeIndex.new(pattern, index) }
+      .map { |index| division_finder.new(pattern, index) }
+  end
+
+  def division_finder
+    DivisionBeforeIndex
   end
 
   def pattern
@@ -94,4 +109,28 @@ end
 
 class RowReflection < Struct.new(:division)
   def score = 100 * division.groups_before_index
+end
+
+class SmudgedImage < ReflectedImage
+  def division_finder
+    SmudgedDivisionFinder
+  end
+end
+
+class SmudgedDivisionFinder < DivisionBeforeIndex
+  memoize def reflected_over?
+    @distance = 0
+    @diff = 0
+
+    loop do
+      return @diff == 1 if bottom_row.nil? || top_row.nil?
+
+      @diff += bottom_top_diff
+      @distance += 1
+    end
+  end
+
+  def bottom_top_diff
+    bottom_row.zip(top_row).count { |b, t| b != t }
+  end
 end
