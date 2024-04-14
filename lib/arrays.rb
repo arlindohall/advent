@@ -247,6 +247,10 @@ class PriorityQueue
     @hash = Hash.new { |h, k| h[k] = [] }
   end
 
+  def <<(item)
+    push(item)
+  end
+
   def push(item)
     key = @key.call(item)
     @max ||= key
