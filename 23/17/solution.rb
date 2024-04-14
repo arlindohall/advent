@@ -12,7 +12,7 @@ class CrucibleMap
   end
 
   def map
-    @text.split("\n").map { |row| row.chars }
+    @text.split("\n").map { |row| row.chars.map(&:to_i) }
   end
 
   def bounds
@@ -32,6 +32,8 @@ class Dijkstra
     until @next_steps.empty? # || shortest_next.distance > best_distance
       follow_one_step
     end
+
+    approaches_to([@map.first.size - 1, @map.size - 1]).best
   end
 
   def follow_one_step
@@ -42,11 +44,22 @@ class Dijkstra
 
     step = @next_steps[min_step].shift
 
-    step.possible_steps(@map, @bounds).each { |step| add_to_next_steps(step) }
+    step.possible_steps(points, @bounds).each { |step| add_to_next_steps(step) }
+  end
+
+  def min_step
+    @next_steps.keys.min
   end
 
   def add_to_next_steps(step)
-    raise "Check if it's better than current at that impetus or greater"
+    if step.update_if_better_than(@shortest_paths, @next_steps)
+      @next_steps[step.distance] ||= []
+      @next_steps[step.distance] << step
+    end
+  end
+
+  def approaches_to(step)
+    @shortest_paths[step]
   end
 
   memoize def points
@@ -82,9 +95,29 @@ class Approaches
       [[-1, 0], 3] => Float::INFINITY
     }
   end
+
+  def update_if_better_than(distance, direction, impetus, next_steps)
+    # This is kinda nasty but I don't want to think about it
+    updated = false
+    impetus
+      .upto(3)
+      .each do |compare_impetus|
+        next unless distance < @best[[direction, compare_impetus]]
+
+        @best[[direction, compare_impetus]] = distance
+        updated = true
+      end
+
+    updated
+  end
+
+  def best
+    @best.values.min
+  end
 end
 
 class Step
+  attr_reader :distance
   def initialize(point, distance, direction, impetus)
     @point = point
     @distance = distance
@@ -93,25 +126,39 @@ class Step
   end
 
   def possible_steps(map, bounds)
-    [[0, 1], [1, 0], [0, -1], [-1, 0]].map { |direction| move_in(direction) }
+    [[0, 1], [1, 0], [0, -1], [-1, 0]].map do |direction|
+        move_in(direction, map)
+      end
+      .compact
       .filter { |step| step.impetus_allowed? }
       .filter { |step, _| step.in_bounds?(bounds) }
   end
 
-  def move_in(direction)
+  def move_in(direction, map)
     dx, dy = direction
     x, y = @point
 
+    return nil unless map[new_point = [x + dx, y + dy]]
+
     Step.new(
-      [x + dx, y + dy],
-      distance_to([x + dx, y + dy], map),
+      new_point,
+      distance_to(new_point, map),
       direction,
       impetus_on(direction)
     )
   end
 
+  def update_if_better_than(shortest_paths, next_steps)
+    shortest_paths[@point].update_if_better_than(
+      @distance,
+      @direction,
+      @impetus,
+      next_steps
+    )
+  end
+
   def impetus_allowed?
-    @impetus < 3
+    @impetus <= 3
   end
 
   def in_bounds?(bounds)
@@ -124,7 +171,7 @@ class Step
   end
 
   def impetus_on(direction)
-    direction == @direction ? @impetus + 1 : 0
+    direction == @direction ? @impetus + 1 : 1
   end
 end
 
