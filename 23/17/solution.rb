@@ -4,144 +4,121 @@ class CrucibleMap
   end
 
   def optimal_heat_loss
-    optimal_path.heat_loss
+    dijsktra.shortest_path
   end
 
-  def optimal_path
-    @paths = { 0 => [Path.start] }
-
-    one_iteration_dijkstra until @paths.empty?
-
-    final_spot
+  def dijsktra
+    Dijkstra.new(map, bounds)
   end
 
-  def one_iteration_dijkstra
-    _debug("one iteration", @paths.values.map(&:size))
-    reachable_from_next.each do |path|
-      next unless optimal?(path)
-      next if path.four_in_a_row?
-      next if worse_than_answer?(path)
+  def map
+    @text.split("\n").map { |row| row.chars }
+  end
 
-      @paths[path.heat_loss] ||= []
-      @paths[path.heat_loss] << path
-      self.best_path = path
+  def bounds
+    Bounds.new(map)
+  end
+end
+
+class Dijkstra
+  def initialize(map, bounds)
+    @map = map
+    @bounds = bounds
+  end
+
+  memoize def shortest_path
+    setup
+
+    until @next_steps.empty? # || shortest_next.distance > best_distance
+      follow_one_step
     end
   end
 
-  def optimal?(path)
-    return true unless best_path(path)
+  def follow_one_step
+    if @next_steps[min_step].empty?
+      @next_steps.delete(min_step)
+      return
+    end
 
-    best_path(path).heat_loss > path.heat_loss
+    step = @next_steps[min_step].shift
+
+    step.possible_steps(@map, @bounds).each { |step| add_to_next_steps(step) }
   end
 
-  def reachable_from_next
-    key = @paths.keys.min
-    @paths.delete(key).flat_map { |path| path.neighbors_within(heat_map) }
+  def add_to_next_steps(step)
+    raise "Check if it's better than current at that impetus or greater"
   end
 
-  def heat_map
-    @heat_map ||= @text.split("\n").map { |line| line.chars.map(&:to_i) }
+  memoize def points
+    @map
+      .each_with_index
+      .flat_map do |row, y|
+        row.each_with_index.map { |cell, x| [[x, y], cell] }
+      end
+      .to_h
   end
 
-  def path_tracker
-    @path_tracker ||= PathTracker.new
-  end
-
-  def best_path(path)
-    path_tracker.best_path(path)
-  end
-
-  def best_path=(path)
-    path_tracker.best_path = path
-  end
-
-  def final_spot
-    path_tracker.best_at_square(heat_map.size - 1, heat_map.first.size - 1)
-  end
-
-  def worse_than_answer?(path)
-    return false unless final_spot
-
-    path.heat_loss > final_spot.heat_loss
+  def setup
+    @shortest_paths = points.keys.map { |pt| [pt, Approaches.new] }.to_h
+    @next_steps = { 0 => [Step.new([0, 0], 0, nil, 0)] }
   end
 end
 
-class PathTracker
+class Approaches
   def initialize
-    @best_paths = {}
-  end
-
-  def best_path(path)
-    paths_like(path).filter { |other| }
-  end
-
-  def best_path=(path)
-  end
-
-  def best_at_square(x, y)
-  end
-
-  def paths_at_point(point)
-    @best_paths[point] ||= []
-    @best_paths[point]
+    @best = {
+      nil => Float::INFINITY,
+      [[0, 1], 1] => Float::INFINITY,
+      [[0, 1], 2] => Float::INFINITY,
+      [[0, 1], 3] => Float::INFINITY,
+      [[1, 0], 1] => Float::INFINITY,
+      [[1, 0], 2] => Float::INFINITY,
+      [[1, 0], 3] => Float::INFINITY,
+      [[0, -1], 1] => Float::INFINITY,
+      [[0, -1], 2] => Float::INFINITY,
+      [[0, -1], 3] => Float::INFINITY,
+      [[-1, 0], 1] => Float::INFINITY,
+      [[-1, 0], 2] => Float::INFINITY,
+      [[-1, 0], 3] => Float::INFINITY
+    }
   end
 end
 
-class Path
-  def self.start
-    new([0, 0], [], 0)
+class Step
+  def initialize(point, distance, direction, impetus)
+    @point = point
+    @distance = distance
+    @direction = direction
+    @impetus = impetus
   end
 
-  attr_reader :location, :heat_loss
-  def initialize(location, history, heat_loss)
-    @location = location
-    @history = history
-    @heat_loss = heat_loss
+  def possible_steps(map, bounds)
+    directions
+      .map { |direction| move_in(direction) }
+      .filter { |step| bounds.in_bounds?(step) }
+      .map do |step|
+        step.new(step, distance_to(step), direction, impetus_on(step))
+      end
   end
 
-  def neighbors_within(domain)
-    neighbors
-      .reject { |x, y| x < 0 || y < 0 }
-      .filter { |x, y| domain[y] && domain[y][x] }
-      .map { |point| move_to(point, domain) }
+  def distance_to(step)
+    raise "Distance going to step"
   end
 
-  def move_to(point, domain)
-    Path.new(
-      point,
-      @history + [point],
-      @heat_loss + heat_loss_for(point, domain)
-    )
+  def impetus_on(step)
+    raise "Impetus goes up if same direction"
+  end
+end
+
+class Bounds
+  def initialize(map)
+    @xmax = map.first.size
+    @ymax = map.size
   end
 
-  def heat_loss_for(point, domain)
+  def in_bounds?(point)
     x, y = point
-    domain[y][x]
-  end
 
-  def neighbors
-    x, y = location
-    [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
-  end
-
-  def four_in_a_row?
-    return false unless @history.size > 4
-
-    last_four_derivatives.uniq.size == 1
-  end
-
-  def last_four_derivatives
-    @history
-      .last(4)
-      .zip(@history.last(5).take(4))
-      .map { |(x1, y1), (x2, y2)| [(y1 - y2), (x1 - x2)] }
-  end
-
-  def direction
-    last_four_derivatives.last
-  end
-
-  def speed
-    last_four_derivatives.reverse.take_while { |v| v == lfd.first }.size
+    x >= 0 && x <= @xmax && y >= 0 && y <= @ymax
   end
 end
