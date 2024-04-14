@@ -93,20 +93,38 @@ class Step
   end
 
   def possible_steps(map, bounds)
-    directions
-      .map { |direction| move_in(direction) }
-      .filter { |step| bounds.in_bounds?(step) }
-      .map do |step|
-        step.new(step, distance_to(step), direction, impetus_on(step))
-      end
+    [[0, 1], [1, 0], [0, -1], [-1, 0]].map { |direction| move_in(direction) }
+      .filter { |step| step.impetus_allowed? }
+      .filter { |step, _| step.in_bounds?(bounds) }
   end
 
-  def distance_to(step)
-    raise "Distance going to step"
+  def move_in(direction)
+    dx, dy = direction
+    x, y = @point
+
+    Step.new(
+      [x + dx, y + dy],
+      distance_to([x + dx, y + dy], map),
+      direction,
+      impetus_on(direction)
+    )
   end
 
-  def impetus_on(step)
-    raise "Impetus goes up if same direction"
+  def impetus_allowed?
+    @impetus < 3
+  end
+
+  def in_bounds?(bounds)
+    bounds.in_bounds?(@point)
+  end
+
+  def distance_to(step, map)
+    x, y = step
+    @distance + map[[x, y]]
+  end
+
+  def impetus_on(direction)
+    direction == @direction ? @impetus + 1 : 0
   end
 end
 
