@@ -3,6 +3,9 @@ class CrucibleMap
     @text = text
   end
 
+  # Subtract the first square and add the last and that's the right answer
+  # It's super shitty but it works. I think I'm adding the old square's value
+  # instead of the new
   def optimal_heat_loss
     dijsktra.shortest_path
   end
