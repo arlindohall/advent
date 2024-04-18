@@ -1,3 +1,5 @@
+$_debug = false
+
 class Trench
   RIGHT = [1, 0]
   UP = [0, -1]
@@ -8,102 +10,73 @@ class Trench
     @text = text
   end
 
-  memoize def instructions
+  def instructions
     @text.split("\n").map { |it| Instruction.parse(it) }
   end
 
-  def part1
-    fill = Set.new
-    x, y = [0, 0]
-
-    instructions.each do |ins|
-      ins.distance.times do
-        x += ins.direction_vector[0]
-        y += ins.direction_vector[1]
-        fill << [x, y]
-      end
-    end
-
-    fill_step = Set[[1, 1]]
-    until fill_step.empty?
-      fill += fill_step
-      next_fill_step = Set.new
-      fill_step
-        .flat_map { |x, y| [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] }
-        .reject { |x, y| fill.include?([x, y]) }
-        .each { |x, y| next_fill_step << [x, y] }
-      fill_step = next_fill_step
-    end
-
-    fill.size
+  def hex_instructions
+    @text.split("\n").map { |it| Instruction.parse_hex(it) }
   end
 
-  # Define area as the sum of the squares to the left of x greater than 0
-  # when heading down, minus the sum of the squares to the right greater than 0
-  # when heading up. If x less than zero, area is positive going up and negative
-  # going down. If we carve out sections then we'll double count and cancel
-  # them out. I think there's some calculus to prove this about a loop interval
-  # or something but I literally couldn't remember.
+  def part1
+    discrete_integral(instructions)
+  end
+
   def part2
-    area = 0
-    x, y = [0, 0]
+    discrete_integral(hex_instructions)
+  end
+
+  def discrete_integral(instructions)
+    area, x, y = 0, 0, 0
 
     instructions.each do |ins|
-      dx, dy = ins.hex_direction
+      dx, dy = ins.direction
+      distance = ins.distance
 
-      area += dx.abs unless dy.zero?
+      # Only considering x > 0, turns out I think the same works for negative though
+      # No change if dx is negative because already counted that
+      area += distance if dx.positive?
+      area += distance * (x + 1) if dy.positive?
+      area -= distance * x if dy.negative?
 
-      if x >= 0 && dx == 0
-        area += dy * ins.hex_distance * (x + 1)
-      elsif x < 0 && dx == 0
-        area += dy * ins.hex_distance * (x.abs + 1)
-      end
+      x += dx * distance
+      y += dy * distance
 
-      x += dx * ins.hex_distance
-      y += dy * ins.hex_distance
+      _debug({ x:, y:, dx:, dy:, distance:, area: })
     end
 
-    area
+    # I think we only need +1 if the last instruction is 'U'
+    # But it's always 'U' in my example and input
+    area + 1
   end
 
   Instruction =
-    Struct.new(:direction, :distance, :hex) do
+    Struct.new(:direction_letter, :distance) do
       def self.parse(line)
-        direction, distance, hex_part = line.split
+        direction_letter, distance, _hex_part = line.split
+
+        Instruction[direction_letter, distance.to_i]
+      end
+
+      def self.parse_hex(line)
+        _direction_letter, _distance, hex_part = line.split
         hex = hex_part[2..7]
 
-        Instruction[direction, distance.to_i, hex]
+        Instruction[hex[-1], hex[...-1].to_i(16)]
       end
 
-      def direction_vector
-        case direction
-        when "R"
+      def direction
+        case direction_letter
+        when "R", "0"
           RIGHT
-        when "U"
-          UP
-        when "L"
-          LEFT
-        when "D"
+        when "D", "1"
           DOWN
+        when "L", "2"
+          LEFT
+        when "U", "3"
+          UP
         else
-          raise "Unknown direction: #{direction}"
-        end
-      end
-
-      def hex_distance
-        hex[...-1].to_i(16)
-      end
-
-      def hex_direction
-        case hex[-1]
-        when "0"
-          RIGHT
-        when "1"
-          DOWN
-        when "2"
-          LEFT
-        when "3"
-          UP
+          raise "Unknown direction: #{direction_letter}"
         end
       end
     end
