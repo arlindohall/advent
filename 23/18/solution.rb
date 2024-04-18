@@ -33,8 +33,6 @@ class Trench
       dx, dy = ins.direction
       distance = ins.distance
 
-      # Only considering x > 0, turns out I think the same works for negative though
-      # No change if dx is negative because already counted that
       area += distance if dx.positive?
       area += distance * (x + 1) if dy.positive?
       area -= distance * x if dy.negative?
@@ -45,8 +43,6 @@ class Trench
       _debug({ x:, y:, dx:, dy:, distance:, area: })
     end
 
-    # I think we only need +1 if the last instruction is 'U'
-    # But it's always 'U' in my example and input
     area + 1
   end
 
