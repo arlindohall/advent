@@ -17,18 +17,41 @@ class Ratings
   end
 
   def part1
-    parts
-      .filter { |part| accept?("in", part) }
-      .each { |part| _debug("Found part", part) }
-      .map { |part| part.values.sum }
-  end
+    sum = 0
+    parts.each do |part|
+      wf = workflows["in"]
 
-  def accept?(workflow, part)
-    workflows[workflow]
-      .steps
-      .find { |wf| wf.applies?(part) }
-      .tap { |wf| _debug("Matching workflow", wf) }
-      .accept?(part, workflows)
+      catch :found_accepts do
+        loop do
+          catch :found_workflow do
+            wf.steps.each do |step|
+              if step.terminal? && step.destination == "A"
+                sum += part.values.sum
+                throw :found_accepts
+              elsif step.terminal? && step.destination == "R"
+                throw :found_accepts
+              elsif step.terminal?
+                wf = workflows[step.destination]
+                throw :found_workflow
+              end
+
+              next unless part.send(step.name).send(step.operator, step.value)
+
+              if step.destination == "A"
+                sum += part.values.sum
+                throw :found_accepts
+              elsif step.destination == "R"
+                throw :found_accepts
+              end
+              wf = workflows[step.destination]
+              throw :found_workflow
+            end
+          end
+        end
+      end
+    end
+
+    sum
   end
 
   Part =
@@ -48,31 +71,9 @@ class Ratings
       end
     end
 
-  Route =
-    Struct.new(:destination) do
-      def applies?(part) = true
-
-      def accept?(part, other_workflows)
-        return true if destination == "A"
-        return false if destination == "R"
-
-        other_workflows[destination].steps.any? { |wf| wf.applies?(part) }
-      end
-    end
+  Route = Struct.new(:destination) { def terminal? = true }
   Comparison =
-    Struct.new(:name, :operator, :value, :destination) do
-      def applies?(part)
-        binding.pry
-        part.send(name).send(operator, value)
-      end
-
-      def accept?(part, other_workflows)
-        return true if destination == "A"
-        return false if destination == "R"
-
-        other_workflows[destination].steps.any? { |wf| wf.applies?(part) }
-      end
-    end
+    Struct.new(:name, :operator, :value, :destination) { def terminal? = false }
 
   class Step
     def self.parse(chunk)
