@@ -46,17 +46,16 @@ class Ratings
     return constraints.size if wf_name == "A"
 
     wf = workflows[wf_name]
-    raise "impossible state, must have found step" if wf.nil?
+    raise "impossible state, must have found workflow" if wf.nil?
 
     step = wf.steps[step_index]
+    raise "impossible state, must have found step" if step.nil?
     return 0 if step.nil?
 
-    if step.fits_constraints?(constraints)
-      max_accepts(step.destination, 0, constraints.with(step)) +
-        max_accepts(wf_name, step_index + 1, constraints.without(step))
-    else
-      max_accepts(wf_name, step_index + 1, constraints)
-    end
+    return max_accepts(step.destination, 0, constraints) if step.terminal?
+
+    max_accepts(step.destination, 0, constraints.with(step)) +
+      max_accepts(wf_name, step_index + 1, constraints.without(step))
   end
 
   Part =
@@ -109,26 +108,26 @@ class Ratings
     Struct.new(:xmin, :xmax, :mmin, :mmax, :amin, :amax, :smin, :smax) do
       def initialize(
         xmin = 1,
-        xmax = 4000,
+        xmax = 4001,
         mmin = 1,
-        mmax = 4000,
+        mmax = 4001,
         amin = 1,
-        amax = 4000,
+        amax = 4001,
         smin = 1,
-        smax = 4000
+        smax = 4001
       )
         super
       end
 
       def greater_than_max(step, compare_name, compare_value)
         if step.name == compare_name && step.operator == ">"
-          [step.value, compare_value].max
+          [step.value + 1, compare_value].max
         else
           compare_value
         end
       end
 
-      def less_than_max(step, compare_name, compare_value)
+      def less_than_min(step, compare_name, compare_value)
         if step.name == compare_name && step.operator == "<"
           [step.value, compare_value].min
         else
@@ -140,19 +139,19 @@ class Ratings
         return self if step.terminal?
         Constraints[
           greater_than_max(step, "x", xmin),
-          less_than_max(step, "x", xmax),
+          less_than_min(step, "x", xmax),
           greater_than_max(step, "m", mmin),
-          less_than_max(step, "m", mmax),
+          less_than_min(step, "m", mmax),
           greater_than_max(step, "a", amin),
-          less_than_max(step, "a", amax),
+          less_than_min(step, "a", amax),
           greater_than_max(step, "s", smin),
-          less_than_max(step, "s", smax)
+          less_than_min(step, "s", smax)
         ].enforce_valid
       end
 
       def greater_than_min(step, compare_name, compare_value)
         if step.name == compare_name && step.operator == ">"
-          [step.value, compare_value].min
+          [step.value + 1, compare_value].min
         else
           compare_value
         end
@@ -169,15 +168,15 @@ class Ratings
       def without(step)
         return self if step.terminal?
         Constraints[
-          greater_than_min(step, "x", xmin),
-          less_than_max(step, "x", xmax),
-          greater_than_min(step, "m", mmin),
-          less_than_max(step, "m", mmax),
-          greater_than_min(step, "a", amin),
-          less_than_max(step, "a", amax),
-          greater_than_min(step, "s", smin),
-          less_than_max(step, "s", smax)
-        ]
+          less_than_max(step, "x", xmin),
+          greater_than_min(step, "x", xmax),
+          less_than_max(step, "m", mmin),
+          greater_than_min(step, "m", mmax),
+          less_than_max(step, "a", amin),
+          greater_than_min(step, "a", amax),
+          less_than_max(step, "s", smin),
+          greater_than_min(step, "s", smax)
+        ].enforce_valid
       end
 
       def size
