@@ -1,16 +1,23 @@
 GEM
   remote: https://rubygems.org/
   specs:
+    colorize (1.1.0)
     prettier_print (1.2.1)
     ruby-prof (1.4.3)
+    singed (0.2.1)
+      colorize
+      stackprof (>= 0.2.13)
+    stackprof (0.2.26)
     syntax_tree (6.1.1)
       prettier_print (>= 1.2.0)
 
 PLATFORMS
   x86_64-darwin-21
+  x86_64-linux
 
 DEPENDENCIES
   ruby-prof
+  singed
   syntax_tree (~> 6.1)
 
 BUNDLED WITH

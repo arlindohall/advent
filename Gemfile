@@ -7,3 +7,4 @@ source "https://rubygems.org"
 gem "ruby-prof"
 
 gem "syntax_tree", "~> 6.1"
+gem "singed"
