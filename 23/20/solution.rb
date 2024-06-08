@@ -3,6 +3,8 @@ class PulseModules
 
   def initialize(text)
     @text = text
+    @low_pulses = 0
+    @high_pulses = 0
   end
 
   memoize def modules
@@ -25,10 +27,11 @@ class PulseModules
   end
 
   def part1
-    pulse_count = 0
-    1000.times {}
+    1000.times { push_button }
+    @low_pulses * @high_pulses
+  end
 
-    pulse_count
+  def part2
   end
 
   def push_button
@@ -60,9 +63,15 @@ class PulseModules
   end
 
   def send_pulse(from, sig_type, to)
-    puts "#{from} -#{sig_type}-> #{to}"
+    # puts "#{from} -#{sig_type}-> #{to}"
+    @low_pulses += 1 if sig_type == :low
+    @high_pulses += 1 if sig_type == :high
 
     module_type, dests = modules[to]
+    if dests.nil?
+      # puts "OUTPUT: #{sig_type}"
+      return
+    end
 
     case module_type
     when "%" # FlipFlop
