@@ -1,3 +1,6 @@
+def solve(input = read_input) =
+  PulseModules.then { |cl| [cl.new(input).part1, cl.new(input).part2] }
+
 class PulseModules
   Pulse = Struct.new(:source, :value, :dest)
 
@@ -5,6 +8,8 @@ class PulseModules
     @text = text
     @low_pulses = 0
     @high_pulses = 0
+    @presses = 0
+    @sq_input_periods = {}
   end
 
   memoize def modules
@@ -32,9 +37,24 @@ class PulseModules
   end
 
   def part2
+    # :sq only input to :rx, and it's a conjunction
+    # :rx shows `low` when all :sq inputs are `high`
+    sq_inputs =
+      modules.select { |name, (type, dests)| dests.include?(:sq) }.keys
+    @sq_input_periods = sq_inputs.map { |name| [name, nil] }.to_h
+
+    raise "Impossible to solve if no :sq" if @sq_input_periods.empty?
+
+    loop do
+      push_button
+      if @sq_input_periods.values.all?
+        return @sq_input_periods.values.reduce(&:lcm)
+      end
+    end
   end
 
   def push_button
+    @presses += 1
     @pulses = []
     send_pulse(:button, :low, :broadcaster)
 
@@ -68,10 +88,9 @@ class PulseModules
     @high_pulses += 1 if sig_type == :high
 
     module_type, dests = modules[to]
-    if dests.nil?
-      # puts "OUTPUT: #{sig_type}"
-      return
-    end
+    return if dests.nil?
+
+    @sq_input_periods[from] = @presses if to == :sq && sig_type == :high
 
     case module_type
     when "%" # FlipFlop
